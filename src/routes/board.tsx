@@ -85,8 +85,9 @@ function Board() {
   const filtered = ranked.filter(
     (p) =>
       (group === ALL || p.rank_group === group) &&
-      (filters.gender === ALL || p.gender === filters.gender) &&
-      (filters.age === ALL || p.age_group === filters.age) &&
+      // gender/age filters only apply to "All groups" (a picked group already decides both)
+      (group !== ALL || filters.gender === ALL || p.gender === filters.gender) &&
+      (group !== ALL || filters.age === ALL || p.age_group === filters.age) &&
       (filters.town === ALL || p.town === filters.town) &&
       (filters.position === ALL || p.position === filters.position) &&
       (filters.hand === ALL || p.dominant_hand === filters.hand) &&
@@ -115,7 +116,14 @@ function Board() {
     <div>
       <PageTitle title="Talent Board" sub={`${role === "coach" ? `Showing only ${coachClub ?? "your club"} players. ` : ""}Kids are only compared with kids of the same gender and age group.${demo ? " Sample data." : ""}`}>
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={group} onValueChange={setGroup}>
+          <Select
+            value={group}
+            onValueChange={(g) => {
+              setGroup(g);
+              // A specific group already fixes gender + age: clear those filters so they can't contradict it.
+              if (g !== ALL) setFilters((f) => ({ ...f, gender: ALL, age: ALL }));
+            }}
+          >
             <SelectTrigger className="h-11 w-48 border-line bg-surface text-base font-semibold text-foreground"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All groups</SelectItem>
@@ -151,8 +159,13 @@ function Board() {
 
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-          <Pick label="Gender" value={filters.gender} onChange={(v) => setF("gender", v)} options={[{ value: ALL, label: "All" }, { value: "boy", label: "Boys" }, { value: "girl", label: "Girls" }]} />
-          <Pick label="Age group" value={filters.age} onChange={(v) => setF("age", v)} options={[{ value: ALL, label: "All" }, ...["U10", "U12", "U14", "U16", "U18"].map((a) => ({ value: a, label: a }))]} />
+          {/* Gender + Age group only make sense across groups; a picked group already decides both. */}
+          {group === ALL && (
+            <>
+              <Pick label="Gender" value={filters.gender} onChange={(v) => setF("gender", v)} options={[{ value: ALL, label: "All" }, { value: "boy", label: "Boys" }, { value: "girl", label: "Girls" }]} />
+              <Pick label="Age group" value={filters.age} onChange={(v) => setF("age", v)} options={[{ value: ALL, label: "All" }, ...["U10", "U12", "U14", "U16", "U18"].map((a) => ({ value: a, label: a }))]} />
+            </>
+          )}
           <Pick label="Town" value={filters.town} onChange={(v) => setF("town", v)} options={[{ value: ALL, label: "All" }, ...towns.map((t) => ({ value: t, label: t }))]} />
           <Pick label="Position" value={filters.position} onChange={(v) => setF("position", v)} options={[{ value: ALL, label: "All" }, ...["guard", "forward", "center"].map((t) => ({ value: t, label: cap(t) }))]} />
           <Pick label="Dominant hand" value={filters.hand} onChange={(v) => setF("hand", v)} options={[{ value: ALL, label: "All" }, { value: "right", label: "Right" }, { value: "left", label: "Left" }]} />

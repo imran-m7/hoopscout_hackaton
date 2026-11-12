@@ -52,8 +52,8 @@ export const toneBg = {
 export function ageMonthsFrom(birthDate: string, now = new Date()): number | null {
   const d = new Date(birthDate);
   if (Number.isNaN(d.getTime())) return null;
-  let m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-  if (now.getDate() < d.getDate()) m -= 1;
+  // Birth year + month to the current month; the day is ignored (same as the backend, contract v3.1).
+  const m = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
   return m >= 0 ? m : null;
 }
 
@@ -67,15 +67,17 @@ export function ageGroupFor(months: number | null): AgeGroup | null {
   return "U18";
 }
 
-/** Age group by birth year, same as the backend (contract v3): years = currentYear − birthYear. */
+/** Age group by birth year, Bosnian categories, same as the backend (contract v3.1):
+ *  years = currentYear − birthYear; U16 = turns 15 or 16 this year, U14 = 13–14, U12 = 11–12,
+ *  U10 = 10 or younger, U18 = 17 or older. */
 export function ageGroupForBirthDate(birthDate: string, now = new Date()): AgeGroup | null {
   const d = new Date(birthDate);
   if (Number.isNaN(d.getTime())) return null;
   const years = now.getFullYear() - d.getFullYear();
-  if (years < 10) return "U10";
-  if (years < 12) return "U12";
-  if (years < 14) return "U14";
-  if (years < 16) return "U16";
+  if (years <= 10) return "U10";
+  if (years <= 12) return "U12";
+  if (years <= 14) return "U14";
+  if (years <= 16) return "U16";
   return "U18";
 }
 
