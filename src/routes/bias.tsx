@@ -48,7 +48,7 @@ function BiasPage() {
       <Card className="mb-6 grid gap-6 p-6 md:grid-cols-3 md:p-8">
         <div className="md:col-span-1">
           <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Average height vs age</p>
-          <p className="mt-1 text-sm text-muted-foreground">Top 10 players</p>
+          <p className="mt-1 text-sm text-muted-foreground">Top 10 of each group (boys and girls, every age group)</p>
         </div>
         <div>
           <p className="text-sm font-semibold text-muted-foreground">Raw scout view</p>
@@ -62,6 +62,7 @@ function BiasPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="text-2xl font-bold uppercase">Birth quarter of the top 10</h2>
+          <p className="text-xs text-muted-foreground">Top 10 of each group, added together.</p>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={quarters}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

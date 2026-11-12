@@ -3,7 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { getPlayer } from "@/lib/api";
 import { SKILLS, SKILL_LABELS } from "@/lib/scoring";
 import { cn } from "@/lib/utils";
-import { fmt, fmtSigned, formatAge, isNum } from "@/lib/format";
+import { NOT_MEASURED, fmt, fmtSigned, formatAge, isNum } from "@/lib/format";
 import { ErrorBlock, LoadingBlock, PageTitle, PlayerTags, RankChange, Score } from "@/components/hoop/bits";
 import { SERIES_COLORS, SkillRadar } from "@/components/hoop/SkillRadar";
 import { Card } from "@/components/ui/card";
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/compare")({
   ),
 });
 
-type Row = { label: string; get: (r: PlayerReport) => number | null; digits?: number; unit?: string; lowerBetter?: boolean; noBest?: boolean };
+type Row = { label: string; get: (r: PlayerReport) => number | null; digits?: number; unit?: string; lowerBetter?: boolean; noBest?: boolean; skill?: boolean };
 
 const METRICS: Row[] = [
   // Elbow has an ideal range (80–100°), so "higher" is not "better" — don't star a winner.
@@ -70,7 +70,7 @@ function ComparePage() {
   };
 
   const rows: Row[] = [
-    ...SKILLS.map((k) => ({ label: SKILL_LABELS[k], get: (r: PlayerReport) => r.player.fair_scores[k] })),
+    ...SKILLS.map((k) => ({ label: SKILL_LABELS[k], get: (r: PlayerReport) => r.player.fair_scores[k], skill: true })),
     ...METRICS,
   ];
 
@@ -121,7 +121,7 @@ function ComparePage() {
                     <td className="p-3 text-muted-foreground">{row.label}</td>
                     {vals.map((v, i) => (
                       <td key={i} className={cn("p-3 num text-lg", i === b && "font-bold text-primary")}>
-                        {fmt(v, row.digits ?? 0, row.unit ?? "")}
+                        {row.skill && !isNum(v) ? <span className="text-sm italic text-muted-foreground">{NOT_MEASURED}</span> : fmt(v, row.digits ?? 0, row.unit ?? "")}
                         {i === b && " ★"}
                       </td>
                     ))}

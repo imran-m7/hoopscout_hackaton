@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { getPlayers } from "@/lib/api";
 import { DEFAULT_WEIGHTS, SKILLS, SKILL_LABELS, SKILL_SORT_LABELS, rankPlayers, type Weights } from "@/lib/scoring";
-import { cap, fmt, fmtSigned, formatAge } from "@/lib/format";
+import { NOT_MEASURED, cap, fmt, fmtSigned, formatAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PlayerSummary, SkillKey } from "@/lib/types";
 import { ErrorBlock, GemTag, LoadingBlock, PageTitle, RankChange, Score, SourceTag, StarToggle } from "@/components/hoop/bits";
@@ -259,7 +259,13 @@ function Board() {
                         <td className="p-3">{cap(p.position)}</td>
                         <td className="p-3">{p.town || "—"}</td>
                         <td className="p-3 text-right text-2xl">
-                          {sortBy === "rank" ? <Score value={isProv ? null : p.fair_score} margin={p.score_margin} /> : <Score value={p.fair_scores[sortBy]} />}
+                          {sortBy === "rank" ? (
+                            <Score value={isProv ? null : p.fair_score} margin={p.score_margin} />
+                          ) : p.fair_scores[sortBy] === null ? (
+                            <span className="text-sm italic text-muted-foreground">{NOT_MEASURED}</span>
+                          ) : (
+                            <Score value={p.fair_scores[sortBy]} />
+                          )}
                         </td>
                         <td className="p-3"><StarToggle id={p.id} /></td>
                       </tr>

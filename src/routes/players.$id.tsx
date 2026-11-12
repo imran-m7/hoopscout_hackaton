@@ -4,7 +4,7 @@ import { AlertTriangle, Lock, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getPlayer, mediaUrl, regenerateCoachReport } from "@/lib/api";
 import { SKILLS, SKILL_LABELS } from "@/lib/scoring";
-import { cap, fmt, fmtSigned, formatAge, isNum, scoreTone, toneBg } from "@/lib/format";
+import { NOT_MEASURED, cap, fmt, fmtSigned, formatAge, isNum, scoreTone, toneBg } from "@/lib/format";
 import { useCoachClub, useNote, useRole, useShortlist } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import type { DribblingAnalysis, JumpAnalysis, PlayerReport, QualityInfo, SanityFlag, ShootingAnalysis, TargetCheck } from "@/lib/types";
@@ -172,11 +172,16 @@ function ProfileBody({ r }: { r: PlayerReport }) {
             {SKILLS.map((k) => {
               const m = p.scores[k];
               const f = p.fair_scores[k];
+              const none = !isNum(m) && !isNum(f);
               return (
                 <div key={k}>
                   <div className="flex justify-between text-sm">
                     <span>{SKILL_LABELS[k]}</span>
-                    <span className="num"><span className="text-muted-foreground">{fmt(m)}</span> → <Score value={f} className="text-lg" /></span>
+                    {none ? (
+                      <span className="italic text-muted-foreground">{NOT_MEASURED}</span>
+                    ) : (
+                      <span className="num"><span className="text-muted-foreground">{fmt(m)}</span> → <Score value={f} className="text-lg" /></span>
+                    )}
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-neutral" style={{ width: `${isNum(m) ? m : 0}%` }} /></div>
                   <div className="mt-1 h-3 rounded-full bg-muted"><div className={cn("h-full rounded-full", toneBg[scoreTone(f)])} style={{ width: `${isNum(f) ? f : 0}%` }} /></div>

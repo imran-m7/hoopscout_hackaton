@@ -1,12 +1,15 @@
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { SKILLS, SKILL_LABELS } from "@/lib/scoring";
 import type { SkillScores } from "@/lib/types";
+import { NOT_MEASURED, isNum } from "@/lib/format";
 
 export const SERIES_COLORS = ["var(--primary)", "var(--chart-2)", "var(--chart-3)"];
 
 export function SkillRadar({ series, height = 300 }: { series: { name: string; scores: SkillScores; color?: string | undefined; dashed?: boolean }[]; height?: number }) {
   const data = SKILLS.map((k) => {
-    const row: Record<string, string | number> = { skill: SKILL_LABELS[k] };
+    // Radar needs a number, so a null score is drawn at 0 — the axis label says it wasn't measured.
+    const missing = series.length > 0 && !isNum(series[0]?.scores[k]);
+    const row: Record<string, string | number> = { skill: missing ? `${SKILL_LABELS[k]} (${NOT_MEASURED})` : SKILL_LABELS[k] };
     series.forEach((s, i) => (row[`s${i}`] = s.scores[k] ?? 0));
     return row;
   });

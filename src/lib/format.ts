@@ -1,6 +1,8 @@
 import type { AgeGroup, Gender } from "./types";
 
 export const DASH = "—";
+/** Shown for a skill score that is null (e.g. shooting_form before the elbow check exists). Never show 0. */
+export const NOT_MEASURED = "not measured yet";
 
 export function isNum(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);

@@ -138,7 +138,7 @@ export const mockApi = {
       { label: "Height", value: p.height_diff_cm < 0 ? 3 : -1 },
       { label: "Experience", value: p.experience_bonus },
     ];
-    store = rankPlayers(all, DEFAULT_WEIGHTS);
+    store = rankPlayers(all, DEFAULT_WEIGHTS, { recomputeRaw: true });
     analyzed.add(id);
     return report(id);
   },

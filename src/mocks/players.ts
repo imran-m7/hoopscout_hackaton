@@ -117,7 +117,7 @@ export function buildMockPlayers(): PlayerSummary[] {
       fair_scores: fair,
       experience_bonus: bonus,
       raw_score: round1(raw),
-      fair_score: round1(fairAvg + bonus),
+      fair_score: Math.round(fairAvg + bonus),
       score_margin: isReal ? 3 + (i % 2) : 4 + (i % 3),
       raw_rank: null,
       fair_rank: null,
@@ -132,5 +132,5 @@ export function buildMockPlayers(): PlayerSummary[] {
       photo_url: null,
     };
   });
-  return rankPlayers(players, DEFAULT_WEIGHTS);
+  return rankPlayers(players, DEFAULT_WEIGHTS, { recomputeRaw: true });
 }
