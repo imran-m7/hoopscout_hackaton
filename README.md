@@ -1,4 +1,54 @@
-# HoopScout – video testing, step by step
+# HoopScout
+
+A coach enters a kid's bio and uploads 3 phone videos (shooting, dribbling, jump). The app
+measures their skills, writes an AI coach report with drills, and places the kid on a fair
+Talent Board where scouts can find hidden gems — kids who are overlooked because they were born
+late in the year or are still small.
+
+- **API contract** (frontend + backend build against it): [api_contract.md](api_contract.md)
+- **Backend** (Python, FastAPI): [backend/README.md](backend/README.md)
+- **Frontend** (React + TypeScript, TanStack Start, built with Lovable): `src/`
+
+## Run everything locally
+
+Backend (terminal 1, from this folder):
+
+```
+python -m venv venv
+venv\Scripts\activate            (Windows)    source venv/bin/activate   (Mac/Linux)
+pip install -r requirements.txt
+python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+```
+
+Frontend (terminal 2, from this folder):
+
+```
+npm i
+npm run dev
+```
+
+Open http://localhost:5173. The frontend reads the API from `VITE_API_URL`
+(default `http://localhost:8000`).
+
+Demo mode (stage safety net, uploads finish in ~10 s with saved results):
+
+```
+$env:DEMO_MODE="true"; python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
+```
+
+## Privacy
+
+Kids' videos, the database (`data/`) and `.env` (API keys) stay on the laptop and are
+git-ignored. The AI only ever sees measured numbers.
+
+## Video analysis test scripts
+
+`step1_convert.py` … `step5_jump_test.py` are the tested video analysis scripts the backend
+uses. See the section below for testing them on new videos.
+
+---
+
+## HoopScout – video testing, step by step
 
 Goal: before the hackathon, prove that the video analysis works on YOUR videos.
 Do the steps in order. Each step tells you GOOD / NEEDS FIXING.
