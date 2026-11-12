@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Lock, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { analyzePlayer, createPlayer, getJob, uploadVideo } from "@/lib/api";
-import { ageGroupFor, ageMonthsFrom, birthQuarterOf, formatAge, formatBytes } from "@/lib/format";
+import { ageGroupForBirthDate, ageMonthsFrom, birthQuarterOf, formatAge, formatBytes } from "@/lib/format";
 import type { Gender, Hand, Job, PlayerInput, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "@/components/hoop/bits";
@@ -83,7 +83,7 @@ function NewPlayer() {
   const patch = (k: Kind, s: Partial<Slot>) => setSlots((all) => ({ ...all, [k]: { ...all[k], ...s } }));
 
   const months = form.birth_date ? ageMonthsFrom(form.birth_date) : null;
-  const group = ageGroupFor(months);
+  const group = form.birth_date ? ageGroupForBirthDate(form.birth_date) : null;
   const quarter = form.birth_date ? birthQuarterOf(form.birth_date) : null;
 
   const valid = form.name.trim() && form.birth_date && months !== null && Number(form.height_cm) > 0 && form.years_playing !== "" && form.club.trim() && form.town.trim();
@@ -94,10 +94,18 @@ function NewPlayer() {
     try {
       let job = await uploadVideo(id, kind, file, (pct) => patch(kind, { uploadPct: pct }));
       patch(kind, { phase: "processing", uploadPct: 100, job });
+      // Backend runs jobs one at a time (shooting ≈ 10 min), so keep polling.
+      // Tolerate short network drops: only give up after ~1 min of failed polls in a row.
+      let misses = 0;
       while (job.status === "queued" || job.status === "running") {
         await sleep(2000);
-        job = await getJob(job.job_id);
-        patch(kind, { job });
+        try {
+          job = await getJob(job.job_id);
+          misses = 0;
+          patch(kind, { job });
+        } catch (e) {
+          if (++misses >= 30) throw e;
+        }
       }
       if (job.status === "failed") {
         patch(kind, { phase: "failed", error: job.error ?? "Analysis failed" });

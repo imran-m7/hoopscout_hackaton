@@ -7,7 +7,7 @@ const STATUS = {
   ideal: { bg: "bg-good", text: "text-good", label: "Ideal" },
   close: { bg: "bg-ok", text: "text-ok", label: "Close" },
   off: { bg: "bg-weak", text: "text-weak", label: "Off" },
-  unknown: { bg: "bg-neutral", text: "text-muted-foreground", label: "Unknown" },
+  unknown: { bg: "bg-neutral", text: "text-muted-foreground", label: "Not checked yet" },
 } as const;
 
 function digitsFor(t: TargetCheck) {

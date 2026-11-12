@@ -1,5 +1,5 @@
 import type { BiasData, CoachReport, Job, PlayerInput, PlayerReport, PlayerSummary, SkillScores } from "@/lib/types";
-import { ageGroupFor, ageMonthsFrom, birthQuarterOf, expectedHeight, rankGroupLabel } from "@/lib/format";
+import { ageGroupForBirthDate, ageMonthsFrom, birthQuarterOf, expectedHeight, rankGroupLabel } from "@/lib/format";
 import { DEFAULT_WEIGHTS, SKILLS, rankPlayers, weightedAverage } from "@/lib/scoring";
 import { buildMockPlayers, experienceBonus } from "./players";
 import { FULL_REPORT_ID, biasFrom, coachReportFor, fullReport, lightReport } from "./report";
@@ -57,7 +57,7 @@ export const mockApi = {
   async createPlayer(input: PlayerInput): Promise<PlayerSummary> {
     await wait(400);
     const months = ageMonthsFrom(input.birth_date) ?? 156;
-    const group = ageGroupFor(months) ?? "U14";
+    const group = ageGroupForBirthDate(input.birth_date) ?? "U14";
     const empty = Object.fromEntries(SKILLS.map((k) => [k, null])) as SkillScores;
     const p: PlayerSummary = {
       id: `new-${Date.now()}-${++counter}`,

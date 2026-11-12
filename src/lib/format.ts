@@ -67,6 +67,18 @@ export function ageGroupFor(months: number | null): AgeGroup | null {
   return "U18";
 }
 
+/** Age group by birth year, same as the backend (contract v3): years = currentYear − birthYear. */
+export function ageGroupForBirthDate(birthDate: string, now = new Date()): AgeGroup | null {
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const years = now.getFullYear() - d.getFullYear();
+  if (years < 10) return "U10";
+  if (years < 12) return "U12";
+  if (years < 14) return "U14";
+  if (years < 16) return "U16";
+  return "U18";
+}
+
 export function birthQuarterOf(birthDate: string): 1 | 2 | 3 | 4 | null {
   const d = new Date(birthDate);
   if (Number.isNaN(d.getTime())) return null;

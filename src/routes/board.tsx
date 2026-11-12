@@ -63,7 +63,8 @@ function Board() {
   const demo = useDemoMode();
   const navigate = useNavigate();
   const shortlist = useShortlist();
-  const [group, setGroup] = useState<string>(ALL);
+  // null = not chosen yet → open on one group (Boys U14 if present); "All" with ~400 players is too long.
+  const [pickedGroup, setGroup] = useState<string | null>(null);
   const [view, setView] = useState<"fair" | "raw">("fair");
   const [sortBy, setSortBy] = useState<"rank" | SkillKey>("rank");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -76,6 +77,7 @@ function Board() {
   const allRanked = useMemo(() => rankPlayers(q.data ?? [], weights), [q.data, weights]);
   const ranked = useMemo(() => allRanked.filter((p) => canSeePlayer(role, coachClub, p)), [allRanked, role, coachClub]);
   const groups = useMemo(() => [...new Set(ranked.map((p) => p.rank_group))].sort(), [ranked]);
+  const group = pickedGroup ?? (groups.includes("Boys U14") ? "Boys U14" : (groups[0] ?? ALL));
   const towns = useMemo(() => [...new Set(ranked.map((p) => p.town).filter(Boolean))].sort(), [ranked]);
 
   const filtered = ranked.filter(

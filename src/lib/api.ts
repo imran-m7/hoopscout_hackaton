@@ -53,12 +53,19 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 8000): P
   return body as T;
 }
 
+// Once the real API has answered, never switch to mock data again (a Wi-Fi drop must not
+// swap real kids for sample data or make job polling look up a job the mocks don't know).
+let realSeen = false;
+
 async function withFallback<T>(real: () => Promise<T>, mock: () => Promise<T>): Promise<T> {
-  if (demo) return mock();
+  if (FORCE_MOCK || (demo && !realSeen)) return mock();
   try {
-    return await real();
+    const out = await real();
+    realSeen = true;
+    return out;
   } catch (e) {
     if (e instanceof Unreachable) {
+      if (realSeen) throw new ApiError("Can't reach the HoopScout server. Check the Wi-Fi and try again.");
       enterDemo();
       return mock();
     }
