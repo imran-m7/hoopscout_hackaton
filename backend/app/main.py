@@ -94,10 +94,10 @@ def list_players():
 
 
 @app.get("/api/players/{pid}", response_model=PlayerReport)
-def get_player(pid: str):
+def get_player(pid: str, request: Request):
     pid = pid.strip()
     _player_or_404(pid)
-    return store.report(pid)
+    return store.report(pid, str(request.base_url))
 
 
 @app.post("/api/players", response_model=PlayerSummary, status_code=201)
@@ -134,13 +134,13 @@ def get_job(job_id: str):
 
 
 @app.post("/api/players/{pid}/analyze", response_model=PlayerReport)
-def analyze(pid: str):
+def analyze(pid: str, request: Request):
     pid = pid.strip()
     rec = _player_or_404(pid)
     if not rec["is_real"]:
         raise HTTPException(400, "Simulated players can't be analyzed")
     try:
-        return store.analyze(pid)
+        return store.analyze(pid, str(request.base_url))
     except store.Busy as e:
         raise HTTPException(409, str(e))
 

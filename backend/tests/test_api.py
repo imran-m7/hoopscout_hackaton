@@ -103,3 +103,13 @@ def test_demo_mode_replays_saved_results():
         rep = c.post(f"/api/players/{pid}/analyze").json()
         assert rep["player"]["status"] == "ranked"
         assert rep["jump"]["best_jump_cm"] == c.get("/api/players/p_001").json()["jump"]["best_jump_cm"]
+
+
+def test_video_urls_follow_the_address_the_browser_used():
+    from backend.app.store import _with_current_media_urls
+    saved = {"jump": {"annotated_video_url": "http://10.0.87.8:8000/media/p_001_jump.mp4?v=1"}, "dribbling": None}
+    local = _with_current_media_urls(saved, "http://localhost:8000/")
+    assert local["jump"]["annotated_video_url"] == "http://localhost:8000/media/p_001_jump.mp4?v=1"
+    lan = _with_current_media_urls(saved, "http://10.0.87.8:8000/")
+    assert lan["jump"]["annotated_video_url"] == "http://10.0.87.8:8000/media/p_001_jump.mp4?v=1"
+    assert saved["jump"]["annotated_video_url"].startswith("http://10.0.87.8")   # stored value untouched

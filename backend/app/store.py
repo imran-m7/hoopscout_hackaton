@@ -167,25 +167,27 @@ def group_average(rank_grp):
     return out
 
 
-def _with_current_media_urls(analyses):
-    """Saved video URLs contain the address the server had at analysis time
-    (e.g. http://localhost:8000). Rewrite them to the CURRENT PUBLIC_BASE_URL, so they also
-    work from another laptop (http://10.0.87.8:8000)."""
+def _with_current_media_urls(analyses, base_url=None):
+    """Saved video URLs contain the address the server had at analysis time.
+    Rewrite them to the address THIS request came in on (base_url), so they work whether the
+    browser uses http://localhost:8000 or another laptop uses http://10.0.87.8:8000.
+    Falls back to PUBLIC_BASE_URL (e.g. for scripts without a request)."""
+    base = (base_url or config.PUBLIC_BASE_URL).rstrip("/")
     out = {}
     for kind, a in analyses.items():
         if a and a.get("annotated_video_url") and "/media/" in a["annotated_video_url"]:
             a = dict(a)
-            a["annotated_video_url"] = config.PUBLIC_BASE_URL + "/media/" + a["annotated_video_url"].split("/media/", 1)[1]
+            a["annotated_video_url"] = base + "/media/" + a["annotated_video_url"].split("/media/", 1)[1]
         out[kind] = a
     return out
 
 
-def report(pid):
+def report(pid, base_url=None):
     rec = PLAYERS[pid]
     s = rec["summary"]
     strengths, weaknesses = rep.insights(rec["scores"], rec["analyses"])
     return {"player": s, "group_average": group_average(s["rank_group"]),
-            **_with_current_media_urls(rec["analyses"]), "strengths": strengths, "weaknesses": weaknesses,
+            **_with_current_media_urls(rec["analyses"], base_url), "strengths": strengths, "weaknesses": weaknesses,
             "coach_report": rec["coach_report"], "sessions": rec["sessions"]}
 
 
@@ -215,7 +217,7 @@ def create_player(inp: dict) -> dict:
         return rec["summary"]
 
 
-def analyze(pid) -> dict:
+def analyze(pid, base_url=None) -> dict:
     busy = [j for j in jobs.player_jobs(pid) if j["status"] in ("queued", "running")]
     if busy:
         raise Busy(f"{busy[0]['kind'].capitalize()} video is still being analyzed - wait until it is done.")
@@ -231,7 +233,7 @@ def analyze(pid) -> dict:
     with LOCK:
         rec["coach_report"] = cr
         db.save_player(rec)
-        return report(pid)
+        return report(pid, base_url)
 
 
 def regenerate_coach_report(pid) -> dict:
