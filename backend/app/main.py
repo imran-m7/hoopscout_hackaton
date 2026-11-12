@@ -133,6 +133,14 @@ def get_job(job_id: str):
     return jobs.view(job_id)
 
 
+@app.get("/api/players/{pid}/jobs", response_model=List[Job])
+def player_jobs(pid: str):
+    """The newest analysis job per video kind (for the profile's "being analyzed" card)."""
+    pid = pid.strip()
+    _player_or_404(pid)
+    return jobs.latest_jobs(pid)
+
+
 @app.post("/api/players/{pid}/analyze", response_model=PlayerReport)
 def analyze(pid: str, request: Request):
     pid = pid.strip()

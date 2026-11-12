@@ -33,7 +33,9 @@ def start(runner=None):
     with LOCK:
         PLAYERS.clear()
         real = db.load_players()
-        if not real:                    # first start: the contract example, so the UI has a real kid
+        if not real and not db.get_meta("example_seeded"):
+            # brand-new database only: the contract example, so the UI has a real kid to show.
+            # Once a database exists, deleting all real kids does NOT bring it back.
             rec = new_record("p_001", dict(EXAMPLE_INPUT), is_real=True)
             rec["analyses"] = example_analyses()
             _score(rec)
@@ -41,14 +43,18 @@ def start(runner=None):
             rec["coach_report"] = rep.rules_report(rec["scores"], st, wk)
             db.save_player(rec)
             real = [rec]
+        db.set_meta("example_seeded", "1")
         for rec in real:
+            if any(rec["analyses"].values()):
+                _score(rec)     # re-apply the current config (age-group targets, norms) to saved metrics
             PLAYERS[rec["id"]] = rec
         for rec in simulated_players():
             PLAYERS.setdefault(rec["id"], rec)
         recompute_all()
     jobs.RUNNER = runner or (_demo_runner if config.DEMO_MODE else _pipeline_runner)
     jobs.ON_DONE = _job_done
-    jobs.start()
+    jobs.AFTER_DONE = _auto_analyze
+    jobs.start(known_players=set(PLAYERS))
 
 
 DEMO_SOURCE = "p_001"     # the kid whose saved results demo mode replays
@@ -79,9 +85,24 @@ def _pipeline_runner(job, progress):
 
 def _job_done(job, analysis):
     with LOCK:
-        rec = PLAYERS[job["player_id"]]
+        rec = PLAYERS.get(job["player_id"])
+        if rec is None:                      # player was deleted while the video was analyzed
+            return
         rec["analyses"][job["kind"]] = analysis
         db.save_player(rec)
+
+
+def _auto_analyze(job):
+    """When a kid's LAST pending video is done, analyze automatically (scores, rank, report),
+    so the coach can close the upload page and the kid still gets ranked."""
+    pid = job["player_id"]
+    if pid not in PLAYERS or jobs.has_pending(pid):
+        return
+    try:
+        analyze(pid)
+        print(f"Auto-analyzed {pid} after its last video")
+    except Busy:
+        pass
 
 
 def _next_real_id():
@@ -192,18 +213,24 @@ def report(pid, base_url=None):
 
 
 # ------------------------------------------------------------------ actions used by the routes
-def _refresh_targets(analyses):
-    """Re-check every target against the CURRENT config (IDEAL, NOT_VALIDATED), so a config
-    change applies at the next /analyze without re-processing the videos."""
+def _kid_group(rec):
+    """The kid's CURRENT age group (it changes when a new year starts)."""
+    return age_group(date.fromisoformat(rec["input"]["birth_date"]))
+
+
+def _refresh_targets(analyses, group=None):
+    """Re-check every target against the CURRENT config and the kid's age group, so a config
+    change or a new age group applies without re-processing the videos."""
     for a in analyses.values():
         if a:
-            a["targets"] = [t for t in (target_check(t["metric"], t["value"]) for t in a["targets"]) if t]
+            a["targets"] = [t for t in (target_check(t["metric"], t["value"], group) for t in a["targets"]) if t]
 
 
 def _score(rec):
     """Metrics -> skill scores, status, coach report, session (one session in v1)."""
-    _refresh_targets(rec["analyses"])
-    rec["scores"] = skills.skill_scores(rec["analyses"])
+    group = _kid_group(rec)
+    _refresh_targets(rec["analyses"], group)
+    rec["scores"] = skills.skill_scores(rec["analyses"], rec["input"]["gender"], group)
     rec["status"], rec["provisional_reason"], rec["score_margin"] = skills.status_for(rec["analyses"])
 
 

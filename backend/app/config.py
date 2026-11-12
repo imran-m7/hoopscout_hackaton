@@ -95,6 +95,29 @@ IDEAL = {
                       "Do every drill with the weak hand first."),
 }
 
+# Age-appropriate ideal ranges. The IDEAL range above is the target from U14 up (textbook form).
+# Younger kids get a wider / lower target: less strength, more leg drive, and in Bosnian
+# minibasket (U10-U12) usually a lower hoop (2.60 m) and a smaller ball (size 5).
+# PLACEHOLDERS - confirm every number with a coach. Missing group -> the IDEAL range.
+IDEAL_BY_AGE = {
+    "avg_elbow_set_deg":  {"U10": (60, 100), "U12": (70, 100)},
+    "head_up_pct":        {"U10": (50, 100), "U12": (60, 100)},
+    "ball_below_hip_pct": {"U10": (70, 100)},
+    "weak_hand_pct":      {"U10": (30, 60), "U12": (35, 60)},
+}
+
+# Norms for skills where a raw number means different things at different ages:
+# (median, standard deviation) per gender + age group. A kid's score = their percentile among
+# kids of the same gender and age group (50 = typical for the group, 84 = one SD above).
+# APPROXIMATE PLACEHOLDERS (rough youth countermovement-jump values) - replace with official
+# norm tables, ideally from the federation / a sports-science source.
+JUMP_NORMS_CM = {
+    "boy":  {"U10": (24, 5), "U12": (27, 5), "U14": (31, 6), "U16": (37, 6), "U18": (41, 6)},
+    "girl": {"U10": (23, 5), "U12": (25, 5), "U14": (27, 5), "U16": (28, 5), "U18": (29, 5)},
+}
+# Dribbles per second while dribbling in place - PLACEHOLDERS, same for boys and girls.
+DPS_NORMS = {"U10": (1.5, 0.45), "U12": (1.7, 0.45), "U14": (1.9, 0.45), "U16": (2.1, 0.45), "U18": (2.2, 0.45)}
+
 # Measurements we show but don't score or give advice on yet.
 # Elbow at set: Hamza reads ~56° vs the textbook 80-100°. Film one adult who shoots well
 # and run step 4: ~85-95° -> remove it from this set; ~60° -> fix set-point detection first.

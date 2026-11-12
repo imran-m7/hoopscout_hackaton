@@ -10,7 +10,7 @@ Phase 3 replaces the fixed age/size coefficients with a regression fitted on the
 import math
 from typing import Dict, List, Optional
 
-from .config import IDEAL, NOT_VALIDATED, WEIGHTS, experience_bonus
+from .config import IDEAL, IDEAL_BY_AGE, NOT_VALIDATED, WEIGHTS, experience_bonus
 
 
 def clean(v):
@@ -31,14 +31,24 @@ def clamp(v, lo=0, hi=100):
 
 
 # ------------------------------------------------------------------ targets
-def target_check(metric: str, value: Optional[float]) -> Optional[dict]:
-    """TargetCheck for one metric. Returns None if the metric has no IDEAL entry at all."""
+def ideal_range(metric: str, age_group: Optional[str] = None):
+    """(ideal_min, ideal_max) for this age group: IDEAL_BY_AGE if set, else the textbook IDEAL."""
+    cfg = IDEAL.get(metric)
+    if cfg is None:
+        return None
+    return IDEAL_BY_AGE.get(metric, {}).get(age_group, (cfg[0], cfg[1]))
+
+
+def target_check(metric: str, value: Optional[float], age_group: Optional[str] = None) -> Optional[dict]:
+    """TargetCheck for one metric, with the ideal range for the kid's age group.
+    Returns None if the metric has no IDEAL entry (range not sourced yet)."""
     if metric not in IDEAL:
         return None
     cfg = IDEAL[metric]
     if cfg is None:          # range not sourced yet
         return None
-    lo, hi, smin, smax, unit, label, tip = cfg
+    _, _, smin, smax, unit, label, tip = cfg
+    lo, hi = ideal_range(metric, age_group)
     value = clean(value)
     out = dict(metric=metric, label=label, value=value, unit=unit,
                ideal_min=lo, ideal_max=hi, scale_min=smin, scale_max=smax, tip=tip)

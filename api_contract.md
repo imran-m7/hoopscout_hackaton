@@ -1,8 +1,21 @@
-# HoopScout API contract (v3.1)
+# HoopScout API contract (v3.3)
 
 The frontend (Lovable, React + TypeScript) and the backend (Python, FastAPI) both build against this file. Change it only when both people agree, then bump the version above.
 
 A coach enters a kid's bio and uploads 3 videos. The app measures their skills, writes an AI report with strengths, weaknesses and drills, and places the kid on a fair Talent Board where scouts can filter, find hidden gems, and view each kid's profile, videos and AI summary.
+
+## What changed in v3.3
+
+1. **Ideal ranges depend on the age group.** U14 and older use the textbook range; U10/U12 get wider, age-appropriate targets (less strength, minibasket: lower hoop, size-5 ball). `TargetCheck.ideal_min/ideal_max` already carry the range for the kid's group, so the UI just draws them. All values are placeholders until a coach confirms them (`config.IDEAL_BY_AGE`).
+2. **Athleticism and dribble speed are percentiles within gender + age group** (50 = typical for the group): 31 cm is average for a U14 boy but excellent for a U10 girl. Norms in `config.JUMP_NORMS_CM` / `config.DPS_NORMS` are approximate placeholders until official norm tables are added.
+3. Targets and skill scores are recomputed from the saved measurements with the kid's **current** age group (at analyze and at server start), no video re-processing.
+
+## What changed in v3.2
+
+1. **Automatic analyze:** when a kid's last pending video is done, the backend runs the analyze step by itself (scores, re-rank, coach report). The coach can close the upload page. Calling `POST /analyze` afterwards is still allowed (it just refreshes).
+2. **New endpoint `GET /api/players/{id}/jobs`** → `Job[]`: the newest job per video kind (shooting, dribbling, jump order). The profile uses it to show "Videos are being analyzed" with progress, and failed videos with their error.
+3. **Jobs survive a server restart:** unfinished jobs are queued again with the same `job_id` (an open upload page keeps polling).
+4. **Saving never falls back to sample data** in the frontend (add player, upload, jobs, analyze, report); reads recover by themselves when the server is back.
 
 ## What changed in v3.1
 
@@ -62,10 +75,10 @@ Agreed by Faris (backend) and Imran (frontend).
 |---|---|---|
 | shooting_form | elbow at set, knee bend, leg–arm timing, follow-through | distance from the textbook ideal range |
 | consistency | shot-to-shot spread of elbow, knee, release height | lower spread is better: `100 - (2·sd_elbow + sd_knee + 300·sd_release)` |
-| ball_handling | dribbles/sec (0.5–3.0 → 0–100), ball below hip %, rhythm | higher is better (average of the three) |
+| ball_handling | dribbles/sec (**percentile within gender + age group**), ball below hip %, rhythm | higher is better (average of the three) |
 | weak_hand | weak hand % of dribbles | higher is better, capped at 50% (50% = 100 points) |
 | court_vision | head up % while dribbling | higher is better |
-| athleticism | best jump (10–50 cm → 0–100) | higher is better |
+| athleticism | best jump, **percentile within gender + age group** (50 = typical for the group) | higher is better |
 
 These are draft formulas (`backend/app/skills.py`), calibrated so far on one real kid.
 
@@ -73,6 +86,7 @@ There are no made/missed shots. The shooting score is form plus consistency only
 
 **How `shooting_form` is scored:** against the textbook ideal (development goal). Ideal ranges live in one config file (`backend/app/config.py`, `IDEAL`). Each analysis returns them as `targets` (`TargetCheck[]`): value, ideal range, score, status and a short tip. The profile draws one bar per target, and `sessions[].target_values` keeps the history.
 
+- **The ideal range depends on the age group** (v3.3): U14+ = textbook range, U10/U12 = wider targets (placeholders, `config.IDEAL_BY_AGE`).
 - Score = 100 inside the ideal range, then a linear drop to 0 at the end of the scale.
 - `status`: `ideal` inside the range; `close` within 15% of the nearest edge; `off` further away; `unknown` when there is no value **or the measurement is not validated yet**.
 - Ranges still missing (knee bend, leg–arm timing, follow-through) must come from a coach or a coaching source, so they are not returned yet. The dribbling ranges (head up 70–100%, ball below hip 80–100%, weak hand 40–60%) are placeholders until a coach confirms them.
@@ -169,7 +183,8 @@ Frontend rule: once the real backend has answered once, never switch to frontend
 | POST | `/api/players` | Create a kid, body `PlayerInput` → `PlayerSummary` (201) | Coach upload |
 | POST | `/api/players/{id}/videos` | multipart: `kind` (shooting \| dribbling \| jump) + `file` → `Job` (202) | Coach upload |
 | GET | `/api/jobs/{job_id}` | Poll analysis progress every 2 s → `Job` | Coach upload |
-| POST | `/api/players/{id}/analyze` | After the jobs finish: compute scores, re-rank everyone, write the coach report → `PlayerReport` (409 if a job is still running; ~8 s because of the AI) | Coach upload ("Analyze and create report") |
+| GET | `/api/players/{id}/jobs` | Newest job per video kind → `Job[]` (progress on the profile) | Player Profile |
+| POST | `/api/players/{id}/analyze` | Compute scores, re-rank everyone, write the coach report → `PlayerReport` (409 if a job is still running; ~8 s because of the AI). Also runs automatically after a kid's last video | Coach upload ("Analyze and create report") |
 | POST | `/api/players/{id}/coach-report` | Regenerate only the AI coach report → `CoachReport` (~8 s) | Player Profile |
 | GET | `/api/bias` | Bias Check data → `BiasData`. Optional `?gender=boy\|girl` or `?rank_group=Boys U14` | Bias Check |
 

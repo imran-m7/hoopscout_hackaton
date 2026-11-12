@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Repeat } from "lucide-react";
 import { demoServerSnapshot, getHealth, isDemoMode, subscribeDemo } from "@/lib/api";
 import { useCoachClub, useRole } from "@/lib/storage";
@@ -30,11 +31,29 @@ export function AppHeader() {
   const [serverDemo, setServerDemo] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const qc = useQueryClient();
+  const checkHealth = () =>
     getHealth()
       .then((h) => setServerDemo("demo_mode" in h && h.demo_mode === true))
       .catch(() => undefined);
+
+  useEffect(() => {
+    checkHealth();
   }, []);
+
+  // Showing sample data because the server was down? Keep checking every 5 s. As soon as it
+  // answers, the API layer leaves sample-data mode and we reload all data from the server.
+  useEffect(() => {
+    if (!demo) return;
+    const t = setInterval(checkHealth, 5000);
+    return () => clearInterval(t);
+  }, [demo]);
+
+  const wasDemo = useRef(demo);
+  useEffect(() => {
+    if (wasDemo.current && !demo) qc.invalidateQueries();
+    wasDemo.current = demo;
+  }, [demo, qc]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-navy-deep/90 backdrop-blur">

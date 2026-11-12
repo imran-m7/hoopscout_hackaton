@@ -32,6 +32,7 @@ def connect(path=None):
                 record TEXT NOT NULL,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
         """)
         _conn.commit()
 
@@ -71,3 +72,26 @@ def load_jobs():
     with _LOCK:
         rows = _conn.execute("SELECT record FROM jobs").fetchall()
     return [json.loads(r[0]) for r in rows]
+
+
+def get_meta(key):
+    _ensure()
+    with _LOCK:
+        row = _conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
+
+
+def set_meta(key, value):
+    _ensure()
+    with _LOCK:
+        _conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value)))
+        _conn.commit()
+
+
+def delete_player(pid):
+    """Remove a real player and their jobs from the database (videos are removed by the caller)."""
+    _ensure()
+    with _LOCK:
+        _conn.execute("DELETE FROM players WHERE id = ?", (pid,))
+        _conn.execute("DELETE FROM jobs WHERE player_id = ?", (pid,))
+        _conn.commit()

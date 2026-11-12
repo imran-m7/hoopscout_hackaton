@@ -13,13 +13,14 @@ import { SkillRadar } from "@/components/hoop/SkillRadar";
 import { TargetBar } from "@/components/hoop/TargetBar";
 import { ContactDialog, PlayerCardDialog } from "@/components/hoop/PlayerDialogs";
 import { useDemoMode } from "@/components/AppHeader";
+import { AnalysisProgress } from "@/components/hoop/AnalysisProgress";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 import { RequireCoachClub, NoAccess } from "@/components/hoop/Access";
-import { canSeePlayer } from "@/lib/access";
+import { canSeePlayer, canUploadVideos } from "@/lib/access";
 
 export const Route = createFileRoute("/players/$id")({
   head: () => ({
@@ -63,6 +64,7 @@ function SectionTitle({ children, extra }: { children: React.ReactNode; extra?: 
 function ProfileBody({ r }: { r: PlayerReport }) {
   const p = r.player;
   const demo = useDemoMode();
+  const [role] = useRole();
   const { has, toggle } = useShortlist();
   const ranked = p.status === "ranked";
   const starred = has(p.id);
@@ -94,6 +96,8 @@ function ProfileBody({ r }: { r: PlayerReport }) {
           </div>
         </div>
       </Card>
+
+      <AnalysisProgress report={r} canAnalyze={canUploadVideos(role)} />
 
       {!ranked && (
         <div className="flex items-start gap-3 rounded-xl border border-ok/50 bg-ok/15 p-4 text-foreground">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Lock, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { analyzePlayer, createPlayer, getJob, uploadVideo } from "@/lib/api";
+import { useDemoMode } from "@/components/AppHeader";
 import { ageGroupForBirthDate, ageMonthsFrom, birthQuarterOf, formatAge, formatBytes } from "@/lib/format";
 import type { Gender, Hand, Job, PlayerInput, Position } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -68,12 +69,17 @@ function NewPlayerGate() {
 
 function NewPlayer() {
   const [coachClub] = useCoachClub();
+  // Sample-data mode = the server isn't reachable: adding a kid would save nothing.
+  const offline = useDemoMode();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [form, setForm] = useState({
     name: "", gender: "boy" as Gender, birth_date: "", height_cm: "", weight_kg: "", sitting_height_cm: "",
-    dominant_hand: "right" as Hand, position: "guard" as Position, years_playing: "", club: coachClub ?? "", town: "",
+    dominant_hand: "right" as Hand, position: "guard" as Position, years_playing: "", town: "",
   });
+  // The club is always the coach's own club. Read it live: the saved club only arrives just after
+  // the first render, so copying it into the form state once would leave the field empty.
+  const club = coachClub ?? "";
   const [slots, setSlots] = useState<Record<Kind, Slot>>({ shooting: EMPTY_SLOT, dribbling: EMPTY_SLOT, jump: EMPTY_SLOT });
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,7 +92,7 @@ function NewPlayer() {
   const group = form.birth_date ? ageGroupForBirthDate(form.birth_date) : null;
   const quarter = form.birth_date ? birthQuarterOf(form.birth_date) : null;
 
-  const valid = form.name.trim() && form.birth_date && months !== null && Number(form.height_cm) > 0 && form.years_playing !== "" && form.club.trim() && form.town.trim();
+  const valid = form.name.trim() && form.birth_date && months !== null && Number(form.height_cm) > 0 && form.years_playing !== "" && club.trim() && form.town.trim();
   const allFiles = KINDS.every((k) => slots[k].file);
 
   async function runSlot(id: string, kind: Kind, file: File): Promise<boolean> {
@@ -140,7 +146,7 @@ function NewPlayer() {
           weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
           sitting_height_cm: form.sitting_height_cm ? Number(form.sitting_height_cm) : null,
           dominant_hand: form.dominant_hand, position: form.position, years_playing: Number(form.years_playing),
-          club: form.club.trim(), town: form.town.trim(),
+          club: club.trim(), town: form.town.trim(),
         };
         const p = await createPlayer(input);
         id = p.id;
@@ -170,6 +176,15 @@ function NewPlayer() {
     <div className="mx-auto max-w-3xl">
       <PageTitle title="Add a player" sub="Bio + three short phone videos. HoopScout does the measuring." />
 
+      {offline && (
+        <Card className="mb-4 border-weak/60 bg-weak/10 p-4 text-sm">
+          <p className="font-semibold">Not connected to the HoopScout server</p>
+          <p className="mt-1 text-muted-foreground">
+            Players and videos can't be saved right now. Start the backend; this page reconnects by itself within a few seconds.
+          </p>
+        </Card>
+      )}
+
       <Card className="p-5 md:p-6">
         <h2 className="text-2xl font-bold uppercase">Player bio</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -197,7 +212,7 @@ function NewPlayer() {
             </Select>
           </Field>
           <Field label="Years playing"><Input type="number" inputMode="numeric" min={0} value={form.years_playing} onChange={(e) => set("years_playing", e.target.value)} /></Field>
-          <Field label="Club"><Input value={form.club} readOnly disabled title="Players are added to your own club" /></Field>
+          <Field label="Club"><Input value={club} readOnly disabled title="Players are added to your own club" /></Field>
           <Field label="Town" className="sm:col-span-2"><Input value={form.town} onChange={(e) => set("town", e.target.value)} /></Field>
         </div>
         <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center">
@@ -216,11 +231,13 @@ function NewPlayer() {
       </div>
 
       <div className="sticky bottom-0 -mx-4 mt-6 border-t border-line bg-navy-deep/95 p-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-        <Button variant="hero" size="xl" className="w-full" disabled={!valid || !allFiles || busy} onClick={submit}>
+        <Button variant="hero" size="xl" className="w-full" disabled={!valid || !allFiles || busy || offline} onClick={submit}>
           {busy ? status || "Working…" : "Analyze and create report"}
         </Button>
-        {(!valid || !allFiles) && !busy && (
-          <p className="mt-2 text-center text-sm text-subtle">{!valid ? "Fill in the bio fields first." : "Add all 3 videos to continue."}</p>
+        {(!valid || !allFiles || offline) && !busy && (
+          <p className="mt-2 text-center text-sm text-subtle">
+            {offline ? "Waiting for the HoopScout server…" : !valid ? "Fill in the bio fields first." : "Add all 3 videos to continue."}
+          </p>
         )}
       </div>
     </div>

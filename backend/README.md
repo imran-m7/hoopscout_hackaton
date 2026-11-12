@@ -32,6 +32,13 @@ GROQ_MODEL=openai/gpt-oss-120b      # Llama 3.3 from the contract is no longer o
 - No key, no Wi-Fi, timeout (15 s) or a wrong answer shape -> rule-based report (`"source": "rules"`).
 - `config.NOT_VALIDATED` (now: elbow at set) = shown in the profile, never scored, never sent to the AI.
 
+## Age-appropriate scoring
+
+- Ideal ranges per age group: `config.IDEAL_BY_AGE` (U10/U12 wider, U14+ textbook). Placeholders.
+- Jump height and dribble speed are percentiles within gender + age group:
+  `config.JUMP_NORMS_CM`, `config.DPS_NORMS` (approximate placeholders, replace with official norms).
+- Targets and scores are recomputed from saved measurements at analyze and at server start.
+
 ## Run
 
 From the repo root, with the venv active:

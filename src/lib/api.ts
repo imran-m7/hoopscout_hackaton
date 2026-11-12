@@ -28,6 +28,13 @@ function enterDemo() {
     listeners.forEach((l) => l());
   }
 }
+/** The real API answered again: leave sample-data mode (never when mocks are forced). */
+function exitDemo() {
+  if (demo && !FORCE_MOCK) {
+    demo = false;
+    listeners.forEach((l) => l());
+  }
+}
 
 export class ApiError extends Error {}
 class Unreachable extends Error {}
@@ -57,11 +64,14 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 8000): P
 // swap real kids for sample data or make job polling look up a job the mocks don't know).
 let realSeen = false;
 
+/** READS: try the real API first (every time, so the app recovers by itself when the server
+ *  comes back); only before the server has ever answered, fall back to sample data. */
 async function withFallback<T>(real: () => Promise<T>, mock: () => Promise<T>): Promise<T> {
-  if (FORCE_MOCK || (demo && !realSeen)) return mock();
+  if (FORCE_MOCK) return mock();
   try {
     const out = await real();
     realSeen = true;
+    exitDemo();
     return out;
   } catch (e) {
     if (e instanceof Unreachable) {
@@ -69,6 +79,24 @@ async function withFallback<T>(real: () => Promise<T>, mock: () => Promise<T>): 
       enterDemo();
       return mock();
     }
+    throw e;
+  }
+}
+
+export const NOT_CONNECTED =
+  "Not connected to the HoopScout server, so nothing was saved. Start the backend and try again.";
+
+/** WRITES (add player, upload, analyze, report): real API only. Never "save" into sample data,
+ *  that would look like success while nothing reaches the server. */
+async function realOnly<T>(real: () => Promise<T>, mock: () => Promise<T>): Promise<T> {
+  if (FORCE_MOCK) return mock();
+  try {
+    const out = await real();
+    realSeen = true;
+    exitDemo();
+    return out;
+  } catch (e) {
+    if (e instanceof Unreachable) throw new ApiError(NOT_CONNECTED);
     throw e;
   }
 }
@@ -92,7 +120,7 @@ export const getPlayer = (id: string) =>
   withFallback(() => request<PlayerReport>(`/api/players/${encodeURIComponent(id)}`), () => mockApi.getPlayer(id));
 
 export const createPlayer = (input: PlayerInput) =>
-  withFallback(() => request<PlayerSummary>("/api/players", json(input)), () => mockApi.createPlayer(input));
+  realOnly(() => request<PlayerSummary>("/api/players", json(input)), () => mockApi.createPlayer(input));
 
 export function uploadVideo(
   id: string,
@@ -124,22 +152,26 @@ export function uploadVideo(
       fd.append("file", file);
       xhr.send(fd);
     });
-  return withFallback(real, () => mockApi.uploadVideo(id, kind, file, onProgress));
+  return realOnly(real, () => mockApi.uploadVideo(id, kind, file, onProgress));
 }
 
 export const getJob = (jobId: string) =>
-  withFallback(() => request<Job>(`/api/jobs/${encodeURIComponent(jobId)}`), () => mockApi.getJob(jobId));
+  realOnly(() => request<Job>(`/api/jobs/${encodeURIComponent(jobId)}`), () => mockApi.getJob(jobId));
 
 export const analyzePlayer = (id: string) =>
-  withFallback(
+  realOnly(
     () => request<PlayerReport>(`/api/players/${encodeURIComponent(id)}/analyze`, { method: "POST" }, 120000),
     () => mockApi.analyzePlayer(id),
   );
 
 export const regenerateCoachReport = (id: string) =>
-  withFallback(
+  realOnly(
     () => request<CoachReport>(`/api/players/${encodeURIComponent(id)}/coach-report`, { method: "POST" }, 60000),
     () => mockApi.regenerateCoachReport(id),
   );
+
+/** Newest analysis job per video kind (GET /api/players/{id}/jobs). Sample data has none. */
+export const getPlayerJobs = (id: string) =>
+  withFallback(() => request<Job[]>(`/api/players/${encodeURIComponent(id)}/jobs`), async () => [] as Job[]);
 
 export const getBias = () => withFallback(() => request<BiasData>("/api/bias"), mockApi.getBias);

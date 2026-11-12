@@ -68,6 +68,13 @@ def test_all_endpoints():
         f = c.get(f"/api/jobs/{failed['job_id']}").json()
         assert f["status"] == "failed" and "camera" in f["error"]
 
+        # auto-analyze: ranked right after the last video, without calling /analyze
+        auto = c.get(f"/api/players/{pid}").json()
+        assert auto["player"]["status"] == "ranked" and auto["coach_report"] is not None
+        pj = c.get(f"/api/players/{pid}/jobs").json()
+        assert [j["kind"] for j in pj] == ["shooting", "dribbling", "jump"]
+        assert pj[2]["status"] == "failed"          # the newest jump upload is the failed one
+
         rep = c.post(f"/api/players/{pid}/analyze").json()
         assert rep["player"]["status"] == "ranked" and rep["player"]["fair_rank"]
         assert rep["player"]["rank_group"].startswith("Girls")
@@ -113,3 +120,29 @@ def test_video_urls_follow_the_address_the_browser_used():
     lan = _with_current_media_urls(saved, "http://10.0.87.8:8000/")
     assert lan["jump"]["annotated_video_url"] == "http://10.0.87.8:8000/media/p_001_jump.mp4?v=1"
     assert saved["jump"]["annotated_video_url"].startswith("http://10.0.87.8")   # stored value untouched
+
+
+def test_unfinished_jobs_are_requeued_after_restart(monkeypatch):
+    """Restarting the server must not lose queued uploads (same job_id keeps working)."""
+    from backend.app import store
+    monkeypatch.setattr(store, "_pipeline_runner", fake_runner)   # also used right at startup
+    with TestClient(app) as c:
+        jobs.RUNNER = fake_runner
+        pid = c.post("/api/players", json={
+            "name": "Restart Kid", "gender": "girl", "birth_date": "2013-02-02", "height_cm": 150,
+            "dominant_hand": "right", "position": "guard", "years_playing": 1,
+            "club": "KK Test", "town": "Zenica"}).json()["id"]
+        jobs.wait_idle()
+        # simulate "server stopped while this job was still waiting"
+        import pathlib
+        from backend.app import config, db
+        up = config.UPLOAD_DIR / f"{pid}_jump_test.mp4"
+        up.write_bytes(b"x")
+        db.save_job({"job_id": "j_restart1", "player_id": pid, "kind": "jump", "status": "queued",
+                     "progress": 0, "step": "Waiting in queue", "error": None, "upload_path": str(up)})
+    with TestClient(app) as c:
+        jobs.RUNNER = fake_runner
+        jobs.wait_idle()
+        j = c.get("/api/jobs/j_restart1").json()
+        assert j["status"] == "done", j
+        assert pathlib.Path(up).exists()
