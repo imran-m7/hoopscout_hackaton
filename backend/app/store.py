@@ -92,9 +92,14 @@ def _next_real_id():
 
 
 # ------------------------------------------------------------------ recompute (fair score + ranks)
-def _labels(quarter, diff):
-    age_label = {1: "Born early in the year (Q1)", 2: "Born in Q2", 3: "Born in Q3",
-                 4: "Born late in the year (Q4)"}[quarter]
+def _labels(months, group_avg_months, diff):
+    """Breakdown labels. The age step compares the kid with the AVERAGE AGE OF THEIR GROUP
+    (a group has two birth years), so the label says months older/younger, not the quarter."""
+    gap = round(group_avg_months - months)            # + = younger than the group
+    if abs(gap) < 2:
+        age_label = "Age close to group average"
+    else:
+        age_label = f"{abs(gap)} months {'younger' if gap > 0 else 'older'} than group average"
     if abs(diff) < 3:
         size_label = "Height close to age average"
     else:
@@ -126,7 +131,7 @@ def recompute_all(today=None):
         inp, d = rec["input"], derived[pid]
         age_adj, size_adj = fairness.adjustments(COEFS, inp["gender"], d["months"], d["diff"],
                                                  means[d["rank_group"]])
-        age_label, size_label = _labels(d["quarter"], d["diff"])
+        age_label, size_label = _labels(d["months"], means[d["rank_group"]]["months"], d["diff"])
         f = fair_from(rec["scores"], age_adj, size_adj, inp["years_playing"], age_label, size_label)
         base = weighted_mean(rec["scores"])
         # traditional scout: skill PLUS the advantage of being older and taller
@@ -162,12 +167,25 @@ def group_average(rank_grp):
     return out
 
 
+def _with_current_media_urls(analyses):
+    """Saved video URLs contain the address the server had at analysis time
+    (e.g. http://localhost:8000). Rewrite them to the CURRENT PUBLIC_BASE_URL, so they also
+    work from another laptop (http://10.0.87.8:8000)."""
+    out = {}
+    for kind, a in analyses.items():
+        if a and a.get("annotated_video_url") and "/media/" in a["annotated_video_url"]:
+            a = dict(a)
+            a["annotated_video_url"] = config.PUBLIC_BASE_URL + "/media/" + a["annotated_video_url"].split("/media/", 1)[1]
+        out[kind] = a
+    return out
+
+
 def report(pid):
     rec = PLAYERS[pid]
     s = rec["summary"]
     strengths, weaknesses = rep.insights(rec["scores"], rec["analyses"])
     return {"player": s, "group_average": group_average(s["rank_group"]),
-            **rec["analyses"], "strengths": strengths, "weaknesses": weaknesses,
+            **_with_current_media_urls(rec["analyses"]), "strengths": strengths, "weaknesses": weaknesses,
             "coach_report": rec["coach_report"], "sessions": rec["sessions"]}
 
 

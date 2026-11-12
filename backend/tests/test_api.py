@@ -35,7 +35,7 @@ def test_all_endpoints():
                 assert sum(s["value"] for s in p["breakdown"]) == p["fair_score"], p["id"]
 
         rep = c.get("/api/players/p_001").json()
-        assert rep["player"]["rank_group"] == "Boys U16"
+        assert rep["player"]["rank_group"] == "Boys U14"   # born 2012 -> turns 14 in 2026
         assert rep["player"]["scores"]["consistency"] == 84          # step4 formula on the example
         assert rep["shooting"]["targets"][0]["metric"] == "avg_elbow_set_deg"
         assert c.get("/api/players/nope").json() == {"error": "Player nope not found"}

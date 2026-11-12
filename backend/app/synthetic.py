@@ -21,7 +21,8 @@ LAST = ["Hodžić", "Begić", "Kovač", "Delić", "Mehić", "Halilović", "Babi�
         "Šarić", "Mujić", "Alić", "Kurtović", "Husić", "Marić", "Omerović"]
 TOWNS = ["Sarajevo", "Mostar", "Tuzla", "Zenica", "Banja Luka", "Bihać"]
 CLUBS = ["KK Orlovi", "KK Vukovi", "KK Sokolovi", "KK Hrast", "KK Ris", "KK Plamen"]
-GROUP_AGE = {"U10": (8, 9), "U12": (10, 11), "U14": (12, 13), "U16": (14, 15), "U18": (16, 17)}
+# age reached this calendar year (Bosnian categories: U16 = turns 15 or 16 this year)
+GROUP_AGE = {"U10": (9, 10), "U12": (11, 12), "U14": (13, 14), "U16": (15, 16), "U18": (17, 18)}
 PER_GROUP = 40
 
 

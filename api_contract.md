@@ -1,14 +1,20 @@
-# HoopScout API contract (v3)
+# HoopScout API contract (v3.1)
 
 The frontend (Lovable, React + TypeScript) and the backend (Python, FastAPI) both build against this file. Change it only when both people agree, then bump the version above.
 
 A coach enters a kid's bio and uploads 3 videos. The app measures their skills, writes an AI report with strengths, weaknesses and drills, and places the kid on a fair Talent Board where scouts can filter, find hidden gems, and view each kid's profile, videos and AI summary.
 
+## What changed in v3.1
+
+1. **Age groups follow the Bosnian categories:** U16 = kids who turn 15 or 16 this calendar year, U14 = 13–14, U12 = 11–12, U10 = 10 or younger, U18 = 17 or older (v3 was one year lower).
+2. **`age_months` counts from the birth year + month to the current month**; the day is ignored (born 2012-10 → in 2026-11 = 169 months = 14 y 1 m).
+3. **Breakdown age label** now says how far the kid is from the group's average age, e.g. "11 months younger than group average" or "Age close to group average" (a group has two birth years, so the quarter alone doesn't tell who is younger).
+
 ## What changed since v2
 
 Agreed by Faris (backend) and Imran (frontend).
 
-1. **Age group by birth year**, not exact age: `U14` = turns 12 or 13 this calendar year. A Q4 birthday is the youngest in its group.
+1. **Age group by birth year**, not exact age (see v3.1 for the exact Bosnian ranges). Within the same birth year, a Q4 birthday is the youngest.
 2. **Fair adjustment is measured against the kid's own rank group** (same gender + age group), not against all kids of that gender. The regression is still fitted per gender on all age groups together. Height uses `height_diff_cm`.
 3. **Bias Check "top 10" = the top 10 of EACH rank group**, never across genders or age groups. New optional filters `?gender=` and `?rank_group=`.
 4. **AI model** is `"gpt-oss-120b (Groq)"` (Groq removed Llama 3.3).
@@ -171,7 +177,7 @@ Job `step` values: "Waiting in queue", "Converting video", "Detecting pose", "Tr
 
 **Frontend-only (no API):** the role picker (Coach or Scout); the shortlist ⭐ and private scout notes (localStorage, per device); filters, sorting, weight sliders and Compare.
 
-**Age group preview on the coach form:** `years = currentYear - birthYear`; `< 10` → U10, `< 12` → U12, `< 14` → U14, `< 16` → U16, else U18 (same as the backend).
+**Age group preview on the coach form:** `years = currentYear - birthYear`; `<= 10` → U10, `<= 12` → U12, `<= 14` → U14, `<= 16` → U16, else U18 (same as the backend; U16 = turns 15 or 16 this year).
 
 ## Types
 
@@ -199,7 +205,7 @@ interface PlayerInput {
 type SkillScores = Record<SkillKey, number | null>;   // 0-100, null = not measured yet
 
 interface BreakdownStep {
-  label: string;     // "Skill score", "Born late in the year (Q4)", "6 cm below age average", "2 years of experience"
+  label: string;     // "Skill score", "11 months younger than group average", "6 cm below age average", "2 years of experience"
   value: number;     // first step = base score, the rest are + / - adjustments; sums to fair_score
 }
 
@@ -208,8 +214,8 @@ interface PlayerSummary {
   is_real: boolean;                // true = filmed, false = simulated
   name: string;
   gender: Gender;
-  age_months: number;
-  age_group: AgeGroup;             // by birth year
+  age_months: number;              // birth year+month to current month (day ignored)
+  age_group: AgeGroup;             // by birth year: U16 = turns 15 or 16 this year
   rank_group: string;              // "Boys U14": ranks only compare within this group
   birth_quarter: 1 | 2 | 3 | 4;
   height_cm: number;
@@ -381,28 +387,28 @@ interface BiasData {
 {
   "player": {
     "id": "p_001", "is_real": true, "name": "Player One", "gender": "boy",
-    "age_months": 169, "age_group": "U16", "rank_group": "Boys U16", "birth_quarter": 4,
+    "age_months": 169, "age_group": "U14", "rank_group": "Boys U14", "birth_quarter": 4,
     "height_cm": 165, "height_diff_cm": 1.5, "maturity_offset_years": null,
     "dominant_hand": "right", "position": "guard", "years_playing": 2,
     "club": "KK Example", "town": "Sarajevo",
     "status": "ranked", "provisional_reason": null,
     "scores":      { "shooting_form": null, "consistency": 84, "ball_handling": 61,
                      "weak_hand": 100, "court_vision": 38, "athleticism": 60 },
-    "fair_scores": { "shooting_form": null, "consistency": 88, "ball_handling": 67,
-                     "weak_hand": 100, "court_vision": 43, "athleticism": 65 },
+    "fair_scores": { "shooting_form": null, "consistency": 83, "ball_handling": 60,
+                     "weak_hand": 99, "court_vision": 37, "athleticism": 59 },
     "experience_bonus": 2,
-    "raw_score": 65, "fair_score": 76, "score_margin": 5,
-    "raw_rank": 12, "fair_rank": 2, "rank_change": 10, "hidden_gem": true,
+    "raw_score": 71, "fair_score": 71, "score_margin": 5,
+    "raw_rank": 4, "fair_rank": 2, "rank_change": 2, "hidden_gem": false,
     "breakdown": [
       { "label": "Skill score", "value": 70 },
-      { "label": "Born late in the year (Q4)", "value": 5 },
-      { "label": "Height close to age average", "value": -1 },
+      { "label": "2 months older than group average", "value": -1 },
+      { "label": "Height close to age average", "value": 0 },
       { "label": "2 years of experience", "value": 2 }
     ],
     "photo_url": null
   },
-  "group_average": { "shooting_form": 58, "consistency": 61, "ball_handling": 60,
-                     "weak_hand": 58, "court_vision": 58, "athleticism": 56 },
+  "group_average": { "shooting_form": 54, "consistency": 56, "ball_handling": 53,
+                     "weak_hand": 58, "court_vision": 53, "athleticism": 54 },
   "shooting": {
     "shots": [ { "index": 1, "time_s": 2.3, "elbow_set_deg": 59.2, "knee_min_deg": 120.8,
                  "release_height_ratio": 1.166, "leg_arm_timing_ms": 167, "follow_through_s": 0.53 } ],
@@ -454,7 +460,7 @@ interface BiasData {
                   "dose": "2 laps x 5 reps, 3 days" } ],
     "generated_at": "2026-11-12T10:25:53Z"
   },
-  "sessions": [ { "session_id": "s_001", "date": "2026-11-12", "fair_score": 76,
+  "sessions": [ { "session_id": "s_001", "date": "2026-11-12", "fair_score": 71,
                   "target_values": { "avg_elbow_set_deg": 55.7, "head_up_pct": 38,
                                      "ball_below_hip_pct": 88, "weak_hand_pct": 50 } } ]
 }

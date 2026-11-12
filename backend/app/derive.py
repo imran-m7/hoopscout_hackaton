@@ -10,20 +10,20 @@ from .config import HEIGHT_REF
 
 
 def age_months(birth: date, today: Optional[date] = None) -> int:
+    """Age in whole months from the birth YEAR + MONTH to the current month (the day is ignored).
+    Born 2012-10 -> in 2026-11 that's 169 months = 14 y 1 m."""
     today = today or date.today()
-    m = (today.year - birth.year) * 12 + (today.month - birth.month)
-    if today.day < birth.day:
-        m -= 1
-    return m
+    return (today.year - birth.year) * 12 + (today.month - birth.month)
 
 
 def age_group(birth: date, today: Optional[date] = None) -> str:
-    """By birth YEAR (age reached this calendar year), like youth leagues do.
+    """By birth YEAR, as in Bosnian youth basketball: U16 = kids who turn 15 or 16 this year,
+    U14 = 13-14, U12 = 11-12, U10 = 10 or younger, U18 = 17 or older.
     That's what makes a Q4 (Oct-Dec) birthday the youngest in its group."""
     today = today or date.today()
-    years = today.year - birth.year
+    years = today.year - birth.year            # age reached this calendar year
     for limit in (10, 12, 14, 16):
-        if years < limit:
+        if years <= limit:
             return f"U{limit}"
     return "U18"
 

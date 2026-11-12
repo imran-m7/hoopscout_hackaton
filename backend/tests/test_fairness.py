@@ -61,7 +61,7 @@ def test_boys_and_girls_never_mixed():
     for p in players:
         groups.setdefault(p["rank_group"], set()).add(p["gender"])
     assert all(len(g) == 1 for g in groups.values())
-    assert t["t_jan_boy"]["rank_group"] == "Boys U16" and t["t_jan_girl"]["rank_group"] == "Girls U16"
+    assert t["t_jan_boy"]["rank_group"] == "Boys U14" and t["t_jan_girl"]["rank_group"] == "Girls U14"
     # same height is judged against the gender's own average
     assert t["t_jan_boy"]["height_diff_cm"] != t["t_jan_girl"]["height_diff_cm"]
     # ranks 1..n inside every group, no gaps or duplicates
@@ -72,7 +72,7 @@ def test_boys_and_girls_never_mixed():
     girls = s.bias(gender="girl")
     assert all(p["id"] in {q["id"] for q in players if q["gender"] == "girl"}
                for p in girls["height"]["points"])
-    one = s.bias(rank_grp="Girls U16")
+    one = s.bias(rank_grp="Girls U14")
     assert sum(one["birth_quarter"]["raw_top10"]) == 10
 
 
@@ -97,3 +97,15 @@ def test_fallback_when_too_few_kids():
                  scores={"consistency": 50 + i}) for i in range(5)]
     c = fairness.fit(rows)["boy"]["consistency"]
     assert c["fallback"] and c["age"] == fairness.FALLBACK["age"]
+
+
+def test_bosnian_age_groups_and_month_age():
+    from backend.app.derive import age_group, age_months
+    today = date(2026, 11, 12)
+    cases = {"2010-03-01": "U16", "2011-12-31": "U16",   # turn 16 / 15 this year
+             "2012-01-01": "U14", "2013-06-15": "U14",   # turn 14 / 13
+             "2014-05-05": "U12", "2016-01-01": "U10", "2008-07-07": "U18"}
+    for birth, group in cases.items():
+        assert age_group(date.fromisoformat(birth), today) == group, birth
+    # year + month only: the day doesn't matter
+    assert age_months(date(2012, 10, 5), today) == 169 == age_months(date(2012, 10, 30), today)
