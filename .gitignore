@@ -1,0 +1,14 @@
+﻿venv/
+__pycache__/
+*.pyc
+.env
+raw_videos/
+videos/
+test_output/
+data/
+*.mov
+*.MOV
+*.mp4
+*.db
+models/
+*.pt
