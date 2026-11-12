@@ -20,6 +20,17 @@ SKILL_NAMES = {"shooting_form": "shooting form", "consistency": "shot consistenc
                "ball_handling": "ball handling", "weak_hand": "weak hand",
                "court_vision": "court vision", "athleticism": "athleticism"}
 
+# which skill each measured metric belongs to (to avoid saying the same thing twice)
+SKILL_OF = {
+    "spread_release": "consistency", "spread_elbow_deg": "consistency", "spread_knee_deg": "consistency",
+    "avg_elbow_set_deg": "shooting_form", "avg_knee_min_deg": "shooting_form",
+    "avg_leg_arm_timing_ms": "shooting_form", "avg_follow_through_s": "shooting_form",
+    "dribbles_per_sec": "ball_handling", "rhythm_score": "ball_handling", "ball_below_hip_pct": "ball_handling",
+    "weak_hand_pct": "weak_hand", "head_up_pct": "court_vision",
+    "best_jump_cm": "athleticism", "avg_jump_cm": "athleticism",
+    **{k: k for k in SKILL_NAMES},
+}
+
 DRILLS = {
     "shooting_form": ("Form shooting close to the rim", "One hand, 1 m from the rim, hold the follow-through until the ball lands.", "3 x 25 shots, 4 days this week"),
     # court_vision: the coach-finger drill needs a second person, this one works alone
@@ -89,11 +100,17 @@ def insights(scores, analyses):
             bad.append((v + 10, {"title": f"{name} to improve", "metric": k, "detail": f"{name} score {v}/100."}))
 
     def pick(items, reverse):
+        """Max 3, one per skill. A measured detail ("Head is up only 38%") beats the
+        score line for the same skill ("Court vision score 38/100")."""
+        measured_skills = {SKILL_OF.get(ins["metric"]) for _, ins in items if ins["metric"] not in SKILL_NAMES}
         out, seen = [], set()
         for _, ins in sorted(items, key=lambda x: x[0], reverse=reverse):
-            if ins["title"] not in seen:
+            skill = SKILL_OF.get(ins["metric"], ins["metric"])
+            if ins["metric"] in SKILL_NAMES and skill in measured_skills:
+                continue                     # score line, but a measured detail exists
+            if skill not in seen:
                 out.append(ins)
-                seen.add(ins["title"])
+                seen.add(skill)
         return out[:3]
 
     return pick(good, True), pick(bad, False)

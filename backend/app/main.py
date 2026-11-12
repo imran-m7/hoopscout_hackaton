@@ -76,6 +76,7 @@ async def server_error(_: Request, exc: Exception):
 
 
 def _player_or_404(pid: str):
+    pid = pid.strip()                      # "p_001 " typed by hand -> "p_001"
     if pid not in store.PLAYERS:
         raise HTTPException(404, f"Player {pid} not found")
     return store.PLAYERS[pid]
@@ -94,6 +95,7 @@ def list_players():
 
 @app.get("/api/players/{pid}", response_model=PlayerReport)
 def get_player(pid: str):
+    pid = pid.strip()
     _player_or_404(pid)
     return store.report(pid)
 
@@ -107,6 +109,7 @@ def create_player(body: PlayerInput):
 
 @app.post("/api/players/{pid}/videos", response_model=Job, status_code=202)
 def upload_video(pid: str, kind: VideoKind = Form(...), file: UploadFile = File(...)):
+    pid = pid.strip()
     rec = _player_or_404(pid)
     if not rec["is_real"]:
         raise HTTPException(400, "Simulated players can't get videos")
@@ -124,6 +127,7 @@ def upload_video(pid: str, kind: VideoKind = Form(...), file: UploadFile = File(
 
 @app.get("/api/jobs/{job_id}", response_model=Job)
 def get_job(job_id: str):
+    job_id = job_id.strip()
     if job_id not in jobs.JOBS:
         raise HTTPException(404, f"Job {job_id} not found")
     return jobs.view(job_id)
@@ -131,6 +135,7 @@ def get_job(job_id: str):
 
 @app.post("/api/players/{pid}/analyze", response_model=PlayerReport)
 def analyze(pid: str):
+    pid = pid.strip()
     rec = _player_or_404(pid)
     if not rec["is_real"]:
         raise HTTPException(400, "Simulated players can't be analyzed")
@@ -142,6 +147,7 @@ def analyze(pid: str):
 
 @app.post("/api/players/{pid}/coach-report", response_model=CoachReport)
 def coach_report(pid: str):
+    pid = pid.strip()
     _player_or_404(pid)
     return store.regenerate_coach_report(pid)
 

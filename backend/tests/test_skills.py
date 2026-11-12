@@ -45,3 +45,13 @@ def test_ai_gets_no_unvalidated_or_unranged_numbers():
     for banned in ("avg_elbow_set_deg", "avg_knee_min_deg", "avg_follow_through_s", "Elbow angle",
                    "Player One", "KK Example", "Sarajevo"):
         assert banned not in payload, banned
+
+
+def test_insights_one_per_skill():
+    from backend.app import report
+    a = example_analyses()
+    st, wk = report.insights(skills.skill_scores(a), a)
+    for items in (st, wk):
+        fam = [report.SKILL_OF[i["metric"]] for i in items]
+        assert len(fam) == len(set(fam)), fam
+    assert "Court vision score" not in str(wk)          # measured "Head is up only 37%" wins
