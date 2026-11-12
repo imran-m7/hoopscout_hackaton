@@ -15,7 +15,10 @@ load_dotenv(ROOT / ".env")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
 CORS_ORIGINS = [o.strip() for o in os.getenv(
     "CORS_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",") if o.strip()]
+# DEMO MODE = stage safety net: uploads skip the 10-20 min analysis and replay p_001's saved
+# results in ~DEMO_JOB_SECONDS. /api/health returns demo_mode: true so the UI shows the badge.
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+DEMO_JOB_SECONDS = float(os.getenv("DEMO_JOB_SECONDS", "10"))
 
 # AI coach report (Groq). Empty key = rule-based report only.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()

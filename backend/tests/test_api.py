@@ -84,3 +84,22 @@ def test_all_endpoints():
     with TestClient(app) as c:
         again = c.get(f"/api/players/{pid}").json()
         assert again["player"]["status"] == "ranked" and again["shooting"] is not None
+
+
+def test_demo_mode_replays_saved_results():
+    from backend.app import config, store
+    with TestClient(app) as c:
+        config.DEMO_JOB_SECONDS = 0.2
+        jobs.RUNNER = store._demo_runner
+        pid = c.post("/api/players", json={
+            "name": "Demo Kid", "gender": "boy", "birth_date": "2012-03-02", "height_cm": 160,
+            "dominant_hand": "right", "position": "forward", "years_playing": 3,
+            "club": "KK Test", "town": "Tuzla"}).json()["id"]
+        js = [c.post(f"/api/players/{pid}/videos", data={"kind": k},
+                     files={"file": (f"{k}.mp4", io.BytesIO(b"x"))}).json()
+              for k in ("shooting", "dribbling", "jump")]
+        jobs.wait_idle()
+        assert all(c.get(f"/api/jobs/{j['job_id']}").json()["status"] == "done" for j in js)
+        rep = c.post(f"/api/players/{pid}/analyze").json()
+        assert rep["player"]["status"] == "ranked"
+        assert rep["jump"]["best_jump_cm"] == c.get("/api/players/p_001").json()["jump"]["best_jump_cm"]

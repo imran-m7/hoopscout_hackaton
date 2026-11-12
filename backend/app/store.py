@@ -9,18 +9,17 @@ import threading
 from datetime import date
 from statistics import mean
 
-from . import db, jobs, report as rep, skills
+from . import config, db, fairness, jobs, report as rep, skills
 from .derive import (age_group, age_months, birth_quarter, height_diff_cm, mirwald_offset,
                      rank_group)
 from .schemas import SKILL_KEYS
-from .scoring import clamp, fair_from, rank_players, target_check, weighted_mean
+from .scoring import clamp, fair_from, rank_players, round_half_up, target_check, weighted_mean
 from .synthetic import EXAMPLE_INPUT, example_analyses, new_record, simulated_players
 
 LOCK = threading.RLock()
 PLAYERS: dict = {}   # id -> record
 
-B_AGE = 0.30         # points per month younger than the group average   (Phase 3: regression)
-C_SIZE = 0.40        # points per cm smaller than the group average      (Phase 3: regression)
+COEFS: dict = {}     # fitted regression slopes {gender: {skill: {"age", "size", "n"}}}
 
 
 class Busy(Exception):
@@ -47,16 +46,35 @@ def start(runner=None):
         for rec in simulated_players():
             PLAYERS.setdefault(rec["id"], rec)
         recompute_all()
-    jobs.RUNNER = runner or _pipeline_runner
+    jobs.RUNNER = runner or (_demo_runner if config.DEMO_MODE else _pipeline_runner)
     jobs.ON_DONE = _job_done
     jobs.start()
 
 
+DEMO_SOURCE = "p_001"     # the kid whose saved results demo mode replays
+
+
+def _demo_runner(job, progress):
+    """DEMO MODE (safety net for the stage): no video processing. Walks through the real
+    steps in ~config.DEMO_JOB_SECONDS and returns the saved analysis of DEMO_SOURCE
+    (real numbers + real annotated video). /api/health shows demo_mode: true the whole time."""
+    import copy
+    import time
+    from .pipeline_steps import STEPS
+    steps = STEPS[job["kind"]]
+    for i, step in enumerate(steps):
+        progress(int(100 * i / len(steps)) + 1, step)
+        time.sleep(config.DEMO_JOB_SECONDS / len(steps))
+    src = PLAYERS.get(DEMO_SOURCE, {}).get("analyses", {}).get(job["kind"])
+    return copy.deepcopy(src or example_analyses()[job["kind"]])
+
+
 def _pipeline_runner(job, progress):
-    from .pipeline import run_analysis       # heavy imports (mediapipe, torch) only when needed
+    """Real analysis in a separate low-priority process, so the API stays fast meanwhile."""
+    from .proc import run_in_process
     rec = PLAYERS[job["player_id"]]
-    return run_analysis(rec["input"], job["kind"], job["upload_path"],
-                        f"{job['player_id']}_{job['kind']}", progress)
+    return run_in_process(dict(rec["input"]), job["kind"], job["upload_path"],
+                          f"{job['player_id']}_{job['kind']}", progress)
 
 
 def _job_done(job, analysis):
@@ -96,23 +114,26 @@ def recompute_all(today=None):
         derived[pid] = dict(months=months, group=grp, rank_group=rank_group(inp["gender"], grp),
                             quarter=birth_quarter(birth),
                             diff=height_diff_cm(inp["gender"], months, inp["height_cm"]))
-    by_group = {}
-    for pid, d in derived.items():
-        by_group.setdefault(d["rank_group"], []).append(pid)
-    means = {g: (mean(derived[p]["months"] for p in ids), mean(derived[p]["diff"] for p in ids))
-             for g, ids in by_group.items()}
+    rows = [dict(rank_group=d["rank_group"], gender=PLAYERS[pid]["input"]["gender"],
+                 months=d["months"], diff=d["diff"], scores=PLAYERS[pid]["scores"])
+            for pid, d in derived.items()]
+    means = fairness.group_means(rows)
+    COEFS.clear()
+    COEFS.update(fairness.fit(rows))          # regression per skill + gender (Phase 3)
 
     summaries = []
     for pid, rec in PLAYERS.items():
         inp, d = rec["input"], derived[pid]
-        m_age, m_diff = means[d["rank_group"]]
-        age_adj = {k: B_AGE * (m_age - d["months"]) for k in SKILL_KEYS}
-        size_adj = {k: C_SIZE * (m_diff - d["diff"]) for k in SKILL_KEYS}
+        age_adj, size_adj = fairness.adjustments(COEFS, inp["gender"], d["months"], d["diff"],
+                                                 means[d["rank_group"]])
         age_label, size_label = _labels(d["quarter"], d["diff"])
         f = fair_from(rec["scores"], age_adj, size_adj, inp["years_playing"], age_label, size_label)
         base = weighted_mean(rec["scores"])
-        # traditional scout: skill plus a bonus for being older and taller
-        raw = 0 if base is None else int(round(clamp(base - age_adj["consistency"] - size_adj["consistency"])))
+        # traditional scout: skill PLUS the advantage of being older and taller
+        # (= the fair adjustment with the opposite sign, weighted over the measured skills)
+        measured = [k for k, v in rec["scores"].items() if v is not None]
+        adv = weighted_mean({k: age_adj[k] + size_adj[k] for k in measured}) or 0
+        raw = 0 if base is None else round_half_up(clamp(base - adv))
         summaries.append(dict(
             id=pid, is_real=rec["is_real"], name=inp["name"], gender=inp["gender"],
             age_months=d["months"], age_group=d["group"], rank_group=d["rank_group"],
@@ -238,7 +259,8 @@ def bias(gender=None, rank_grp=None):
             "points": [{"id": p["id"], "name": p["name"], "height_diff_cm": p["height_diff_cm"],
                         "raw_rank": p["raw_rank"], "fair_rank": p["fair_rank"]} for p in ranked],
         },
-        "explanation": ("Counts use the top 10 of each group (same gender and age group). "
+        "explanation": (fairness.describe(COEFS) + " "
+                        "Counts use the top 10 of each group (same gender and age group). "
                         "A traditional ranking favours kids born early in the year and kids who are "
                         "taller than average, because they are simply further in their growth. "
                         "The fair score compares each kid with what is expected for their age and "

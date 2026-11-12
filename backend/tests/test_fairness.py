@@ -74,3 +74,26 @@ def test_boys_and_girls_never_mixed():
                for p in girls["height"]["points"])
     one = s.bias(rank_grp="Girls U16")
     assert sum(one["birth_quarter"]["raw_top10"]) == 10
+
+
+def test_regression_learns_the_bias_per_gender():
+    """The simulated kids have +0.30 points/month and +0.40 points/cm built in.
+    The regression must find a clearly positive effect, separately for boys and girls."""
+    from backend.app import fairness
+    _seed_with_twins()
+    for gender in ("boy", "girl"):
+        c = s.COEFS[gender]
+        assert all(v["n"] >= 190 and not v["fallback"] for v in c.values())
+        avg_age = sum(v["age"] for v in c.values()) / len(c)
+        avg_size = sum(v["size"] for v in c.values()) / len(c)
+        assert 0.15 < avg_age < 0.7, avg_age
+        assert 0.15 < avg_size < 0.7, avg_size
+    assert "For boys" in fairness.describe(s.COEFS) and "For girls" in fairness.describe(s.COEFS)
+
+
+def test_fallback_when_too_few_kids():
+    from backend.app import fairness
+    rows = [dict(rank_group="Boys U14", gender="boy", months=150 + i, diff=0.0,
+                 scores={"consistency": 50 + i}) for i in range(5)]
+    c = fairness.fit(rows)["boy"]["consistency"]
+    assert c["fallback"] and c["age"] == fairness.FALLBACK["age"]

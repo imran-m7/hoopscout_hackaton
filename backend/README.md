@@ -1,10 +1,20 @@
 # HoopScout backend (FastAPI)
 
-Builds against `api_contract.md` (v2).
+Builds against [api_contract.md](../api_contract.md) (v3).
 
-**Done:** Phase 2 (real video pipeline, SQLite, background worker) and Phase 4 (AI coach report).
-Skill scores use draft formulas ([skills.py](app/skills.py)); the fair-score coefficients are
-still fixed numbers (Phase 3 = regression).
+**Done:** Phase 2 (real video pipeline in a separate low-priority process, SQLite, job worker),
+Phase 3 (fair-score regression per skill + gender, [fairness.py](app/fairness.py)),
+Phase 4 (AI coach report) and demo mode. Skill scores use draft formulas ([skills.py](app/skills.py)).
+
+## Demo mode (stage safety net)
+
+```
+$env:DEMO_MODE="true"; python -m uvicorn backend.app.main:app --port 8000
+```
+
+`/api/health` returns `demo_mode: true` (the UI shows the badge). Uploads skip the analysis and
+replay p_001's saved real results in ~10 s (`DEMO_JOB_SECONDS`). Everything else works normally.
+Turn it off by closing the terminal (or `$env:DEMO_MODE="false"`).
 
 ## AI coach report
 
