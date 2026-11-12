@@ -57,7 +57,14 @@ def start(runner=None):
     jobs.start(known_players=set(PLAYERS))
 
 
-DEMO_SOURCE = "p_001"     # the kid whose saved results demo mode replays
+def _demo_source_analysis(kind):
+    """Saved analysis demo mode replays: the first REAL kid (lowest id) who has all 3 videos
+    analyzed, e.g. Hamza. Falls back to the contract example (no videos) if there is none."""
+    for pid in sorted(PLAYERS):
+        rec = PLAYERS[pid]
+        if rec["is_real"] and all(rec["analyses"].get(k) for k in ("shooting", "dribbling", "jump")):
+            return rec["analyses"][kind]
+    return None
 
 
 def _demo_runner(job, progress):
@@ -71,7 +78,7 @@ def _demo_runner(job, progress):
     for i, step in enumerate(steps):
         progress(int(100 * i / len(steps)) + 1, step)
         time.sleep(config.DEMO_JOB_SECONDS / len(steps))
-    src = PLAYERS.get(DEMO_SOURCE, {}).get("analyses", {}).get(job["kind"])
+    src = _demo_source_analysis(job["kind"])
     return copy.deepcopy(src or example_analyses()[job["kind"]])
 
 
