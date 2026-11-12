@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>HoopScout</title>
+  <defs>
+    <linearGradient id="ball" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F99A2B"/>
+      <stop offset="1" stop-color="#E5591A"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#ball)"/>
+  <g fill="none" stroke="#0B1530" stroke-width="3.2" stroke-linecap="round">
+    <circle cx="32" cy="32" r="30"/>
+    <path d="M32 2v60"/>
+    <path d="M2 32h60"/>
+    <path d="M11 10.5c8 6 12 13.5 12 21.5s-4 15.5-12 21.5"/>
+    <path d="M53 10.5c-8 6-12 13.5-12 21.5s4 15.5 12 21.5"/>
+  </g>
+</svg>

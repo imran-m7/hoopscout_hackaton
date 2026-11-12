@@ -1,0 +1,113 @@
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Repeat } from "lucide-react";
+import { demoServerSnapshot, getHealth, isDemoMode, subscribeDemo } from "@/lib/api";
+import { useCoachClub, useRole } from "@/lib/storage";
+import { Button } from "@/components/ui/button";
+
+const NAV = {
+  coach: [
+    { to: "/players/new", label: "Add Player" },
+    { to: "/board", label: "Talent Board" },
+  ],
+  scout: [
+    { to: "/board", label: "Talent Board" },
+    { to: "/shortlist", label: "Shortlist" },
+    { to: "/compare", label: "Compare" },
+    { to: "/bias", label: "Bias Check" },
+  ],
+} as const;
+
+export function useDemoMode() {
+  return useSyncExternalStore(subscribeDemo, isDemoMode, demoServerSnapshot);
+}
+
+export function AppHeader() {
+  const [role, setRole] = useRole();
+  const [club, setClub] = useCoachClub();
+  const demo = useDemoMode();
+  // Backend demo mode (DEMO_MODE=true): real data, but uploads replay saved results.
+  const [serverDemo, setServerDemo] = useState(false);
+  const navigate = useNavigate();
+
+  const qc = useQueryClient();
+  const checkHealth = () =>
+    getHealth()
+      .then((h) => setServerDemo("demo_mode" in h && h.demo_mode === true))
+      .catch(() => undefined);
+
+  useEffect(() => {
+    checkHealth();
+  }, []);
+
+  // Showing sample data because the server was down? Keep checking every 5 s. As soon as it
+  // answers, the API layer leaves sample-data mode and we reload all data from the server.
+  useEffect(() => {
+    if (!demo) return;
+    const t = setInterval(checkHealth, 5000);
+    return () => clearInterval(t);
+  }, [demo]);
+
+  const wasDemo = useRef(demo);
+  useEffect(() => {
+    if (wasDemo.current && !demo) qc.invalidateQueries();
+    wasDemo.current = demo;
+  }, [demo, qc]);
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-line bg-navy-deep/90 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+        <Link to="/" className="flex items-center gap-2">
+          <span className="grid size-9 place-items-center rounded-full bg-ball text-lg shadow-glow">🏀</span>
+          <span className="font-display text-2xl font-bold uppercase tracking-wide text-foreground">
+            Hoop<span className="text-primary">Scout</span>
+          </span>
+        </Link>
+        {demo && (
+          <span className="rounded-full border border-ok/50 bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok" title="The API is unavailable — showing sample data">
+            Demo mode · Sample data
+          </span>
+        )}
+        {!demo && serverDemo && (
+          <span className="rounded-full border border-ok/50 bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok" title="The server is in demo mode — uploads replay saved real results">
+            Demo mode
+          </span>
+        )}
+        <nav className="order-last -mx-1 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
+          {role &&
+            NAV[role].map((n) => (
+              <Link
+                key={n.to}
+                to={n.to}
+                className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold text-subtle transition-colors hover:text-foreground"
+                activeProps={{ className: "bg-surface text-foreground" }}
+              >
+                {n.label}
+              </Link>
+            ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-2">
+          {role === "coach" && club && (
+            <button onClick={() => setClub(null)} className="text-xs text-subtle hover:text-foreground" title="Change club">
+              🏟 {club} · change
+            </button>
+          )}
+          {role ? (
+            <Button
+              variant="navy"
+              size="sm"
+              onClick={() => {
+                const next = role === "coach" ? "scout" : "coach";
+                setRole(next);
+                navigate({ to: next === "coach" ? "/players/new" : "/board" });
+              }}
+            >
+              <Repeat /> {role === "coach" ? "🎥 Coach" : "🔎 Scout"} · switch
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </header>
+  );
+}

@@ -1,0 +1,16 @@
+# video analysis (steps 1-5)
+mediapipe>=0.10.20
+opencv-python
+numpy
+scipy
+imageio-ffmpeg
+ultralytics
+
+# API (backend/)
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic>=2
+httpx
+python-dotenv
+pytest
