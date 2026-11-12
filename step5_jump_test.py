@@ -108,6 +108,13 @@ def main():
     print("Typical standing jumps for 10-14 year olds are roughly 20-45 cm; far outside that = check the video.")
 
     out = out_name(args.video, "jump.mp4")
+    save_annotated(args.video, pose, jumps, out)
+    print(f"\nJump video saved: {out}")
+
+
+def save_annotated(video, pose, jumps, out):
+    """Skeleton + IN THE AIR label + height after each landing."""
+    fps = pose["fps"]
     writer = H264Writer(out, pose["w"], pose["h"], fps)
     label = {}
     for j in jumps:
@@ -115,7 +122,7 @@ def main():
             label[f] = f"Jump {j['jump']}: IN THE AIR"
         for f in range(j["end"] + 1, min(len(pose["xy"]), j["end"] + 1 + int(fps))):
             label[f] = f"Jump {j['jump']}: {(j['h_flight_cm'] + j['h_hip_cm']) / 2:.0f} cm"
-    for i, frame in iter_frames(args.video):
+    for i, frame in iter_frames(video):
         if i >= len(pose["xy"]):
             break
         if not np.isnan(pose["xy"][i]).all():
@@ -124,7 +131,6 @@ def main():
             put_text(frame, label[i], 50, (0, 200, 255), 1.0)
         writer.write(frame)
     writer.close()
-    print(f"\nJump video saved: {out}")
 
 
 if __name__ == "__main__":

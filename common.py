@@ -102,18 +102,19 @@ def out_name(path, suffix):
 # ---------------------------------------------------------------- pose
 MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
              "pose_landmarker_full/float16/latest/pose_landmarker_full.task")
-MODEL_PATH = os.path.join("models", "pose_landmarker_full.task")
+HERE = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(HERE, "models", "pose_landmarker_full.task")
 
 
 def get_pose_model():
     if not os.path.exists(MODEL_PATH):
-        os.makedirs("models", exist_ok=True)
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
         print("Downloading MediaPipe pose model (one time, ~9 MB)...")
         urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
     return MODEL_PATH
 
 
-def extract_pose(path):
+def extract_pose(path, on_frame=None):
     """
     Run MediaPipe on every frame.
     Returns dict:
@@ -121,6 +122,7 @@ def extract_pose(path):
       vis  (N,33)   visibility 0..1
       detected (N,) bool
       fps, w, h
+    on_frame(i, n): optional progress callback (used by the backend)
     """
     import mediapipe as mp
     from mediapipe.tasks import python as mp_tasks
@@ -150,8 +152,11 @@ def extract_pose(path):
                 xy_list.append(np.full((33, 2), np.nan))
                 vis_list.append(np.zeros(33))
                 det_list.append(False)
-            if i % 60 == 0:
-                print(f"  pose: frame {i}/{n}", end="\r")
+            if i % 30 == 0:
+                if on_frame:
+                    on_frame(i, n)
+                else:
+                    print(f"  pose: frame {i}/{n}", end="\r")
     print(" " * 40, end="\r")
     return dict(xy=np.array(xy_list, dtype=float), vis=np.array(vis_list, dtype=float),
                 detected=np.array(det_list, dtype=bool), fps=fps, w=w, h=h)

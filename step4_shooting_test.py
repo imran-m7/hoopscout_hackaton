@@ -159,15 +159,20 @@ def main():
         w.writerows(shots)
     print(f"\nPer-shot numbers saved: {csv_path}")
 
-    # annotated video: skeleton + live angles + shot markers
     out = out_name(args.video, "shooting.mp4")
+    save_annotated(args.video, pose, shots, elbow, knee, out)
+    print(f"Shooting video saved: {out}  -> check DIP / SET / RELEASE labels appear at the right moments")
+
+
+def save_annotated(video, pose, shots, elbow, knee, out):
+    """Skeleton + live angles + DIP / SET / RELEASE markers."""
     writer = H264Writer(out, pose["w"], pose["h"], pose["fps"])
     marks = {}
     for s in shots:
         for key in ("dip", "set", "release"):
             for k in range(int(pose["fps"] * 0.25)):   # show label for 0.25 s
                 marks[s[key] + k] = f"Shot {s['shot']}: {key.upper()}"
-    for i, frame in iter_frames(args.video):
+    for i, frame in iter_frames(video):
         if i >= len(pose["xy"]):
             break
         if not np.isnan(pose["xy"][i]).all():
@@ -178,7 +183,6 @@ def main():
             put_text(frame, marks[i], 80, (0, 200, 255), 1.0)
         writer.write(frame)
     writer.close()
-    print(f"Shooting video saved: {out}  -> check DIP / SET / RELEASE labels appear at the right moments")
 
 
 if __name__ == "__main__":

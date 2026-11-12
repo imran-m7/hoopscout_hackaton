@@ -1,5 +1,5 @@
 """
-HoopScout API (contract v2) - Phase 1: every endpoint works, backed by mock data.
+HoopScout API (contract v2) - Phase 2: real video pipeline, SQLite, background worker.
 
 Run from the repo root:
     uvicorn backend.app.main:app --reload --port 8000
@@ -7,6 +7,7 @@ Docs: http://localhost:8000/docs
 """
 import math
 import shutil
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
@@ -19,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import config
-from . import mock_store as store
+from . import jobs, store
 from .schemas import (BiasData, CoachReport, Gender, Health, Job, PlayerInput, PlayerReport,
                       PlayerSummary, VideoKind)
 
@@ -43,7 +44,7 @@ class SafeJSONResponse(JSONResponse):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    store.seed()
+    store.start()
     yield
 
 
@@ -106,27 +107,37 @@ def create_player(body: PlayerInput):
 
 @app.post("/api/players/{pid}/videos", response_model=Job, status_code=202)
 def upload_video(pid: str, kind: VideoKind = Form(...), file: UploadFile = File(...)):
-    _player_or_404(pid)
+    rec = _player_or_404(pid)
+    if not rec["is_real"]:
+        raise HTTPException(400, "Simulated players can't get videos")
     ext = Path(file.filename or "").suffix.lower()
     if ext not in config.VIDEO_EXTENSIONS:
         raise HTTPException(400, f"Unsupported file type '{ext or '?'}'. Use .mov, .mp4, .m4v or .avi")
-    dest = config.UPLOAD_DIR / f"{pid}_{kind}{ext}"
+    dest = config.UPLOAD_DIR / f"{pid}_{kind}_{uuid.uuid4().hex[:6]}{ext}"
     with dest.open("wb") as out:                       # streamed in chunks: no size limit
         shutil.copyfileobj(file.file, out, length=1024 * 1024)
-    return store.create_job(pid, kind, file.filename or "")
+    if dest.stat().st_size == 0:
+        dest.unlink()
+        raise HTTPException(400, "The uploaded file is empty")
+    return jobs.submit(pid, kind, dest)
 
 
 @app.get("/api/jobs/{job_id}", response_model=Job)
 def get_job(job_id: str):
-    if job_id not in store.JOBS:
+    if job_id not in jobs.JOBS:
         raise HTTPException(404, f"Job {job_id} not found")
-    return store.job_view(job_id)
+    return jobs.view(job_id)
 
 
 @app.post("/api/players/{pid}/analyze", response_model=PlayerReport)
 def analyze(pid: str):
-    _player_or_404(pid)
-    return store.analyze(pid)
+    rec = _player_or_404(pid)
+    if not rec["is_real"]:
+        raise HTTPException(400, "Simulated players can't be analyzed")
+    try:
+        return store.analyze(pid)
+    except store.Busy as e:
+        raise HTTPException(409, str(e))
 
 
 @app.post("/api/players/{pid}/coach-report", response_model=CoachReport)

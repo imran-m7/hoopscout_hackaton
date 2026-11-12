@@ -42,7 +42,7 @@ def plausible_ball(mids, boxes, joints, body, prev, frames_since_prev, max_dist)
     return keep
 
 
-def detect_ball(path, model_name="yolov8n.pt", conf=0.15, pose_xy=None, max_dist=0.5):
+def detect_ball(path, model_name="yolov8n.pt", conf=0.15, pose_xy=None, max_dist=0.5, on_frame=None):
     from ultralytics import YOLO
     model = YOLO(model_name)  # downloads automatically the first time
     body = body_height_px(pose_xy) if pose_xy is not None else float("nan")
@@ -76,7 +76,10 @@ def detect_ball(path, model_name="yolov8n.pt", conf=0.15, pose_xy=None, max_dist
             radii.append(np.nan)
             confs.append(0.0)
         if i % 30 == 0:
-            print(f"  ball: frame {i}", end="\r")
+            if on_frame:
+                on_frame(i)
+            else:
+                print(f"  ball: frame {i}", end="\r")
     print(" " * 40, end="\r")
     if rejected:
         print(f"Ignored {rejected} false ball detections (too far from player / wrong size / jumped)")
@@ -241,13 +244,20 @@ def main():
     else:
         print("  Ball and wrist counts differ a lot -> COUNT THE DRIBBLES YOURSELF in the video and see which is right.")
 
-    # ---------- annotated video
     out = out_name(args.video, "ball.mp4")
+    save_annotated(args.video, pose, ball_xy, radii, interp, res, out)
+    print(f"\nBall video saved: {out}  -> check the circle stays on the ball")
+
+
+def save_annotated(video, pose, ball_xy, radii, interp, res, out):
+    """Skeleton + ball circle + trail + live dribble count."""
+    fps = pose["fps"]
+    n = min(len(pose["xy"]), len(ball_xy))
     writer = H264Writer(out, pose["w"], pose["h"], fps)
     bounce_set = set(res["bounces"].tolist())
     seen = 0
     trail = []
-    for i, frame in iter_frames(args.video):
+    for i, frame in iter_frames(video):
         if i >= n:
             break
         if not np.isnan(pose["xy"][i]).all():
@@ -267,7 +277,6 @@ def main():
         put_text(frame, "green = ball found, yellow = filled gap", 75, scale=0.6)
         writer.write(frame)
     writer.close()
-    print(f"\nBall video saved: {out}  -> check the circle stays on the ball")
 
 
 if __name__ == "__main__":

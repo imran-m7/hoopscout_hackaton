@@ -7,7 +7,8 @@ Run from the repo root:  python -m pytest backend/tests -q
 """
 from datetime import date
 
-from backend.app import mock_store as s
+from backend.app import store as s
+from backend.app.synthetic import new_record, simulated_players
 from backend.app.derive import age_months, avg_height_cm
 
 BASE = dict(height_cm=165, weight_kg=None, sitting_height_cm=None, dominant_hand="right",
@@ -20,14 +21,16 @@ TWINS = {  # identical skills and height, only birth month and gender differ
 
 def _seed_with_twins(average_height=True):
     """average_height: each twin is exactly average height for their age, so only age differs."""
-    s.seed()
+    s.PLAYERS.clear()
+    for rec in simulated_players():
+        s.PLAYERS[rec["id"]] = rec
     for pid, (gender, birth) in TWINS.items():
         inp = dict(BASE, name=pid, gender=gender, birth_date=birth)
         if average_height:
             months = age_months(date.fromisoformat(birth))
             inp["height_cm"] = round(avg_height_cm(gender, months), 1)
-        r = s._new_record(pid, inp, True)
-        r["scores"] = dict(s.HAMZA_SCORES)
+        r = new_record(pid, inp, True)
+        r["scores"] = {"shooting_form": 74, "consistency": 84, "ball_handling": 66, "weak_hand": 100, "court_vision": 37, "athleticism": 58}
         r["status"], r["provisional_reason"] = "ranked", None
         s.PLAYERS[pid] = r
     s.recompute_all()

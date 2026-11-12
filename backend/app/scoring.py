@@ -10,7 +10,7 @@ Phase 3 replaces the fixed age/size coefficients with a regression fitted on the
 import math
 from typing import Dict, List, Optional
 
-from .config import IDEAL, WEIGHTS, experience_bonus
+from .config import IDEAL, NOT_VALIDATED, WEIGHTS, experience_bonus
 
 
 def clean(v):
@@ -18,6 +18,12 @@ def clean(v):
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
     return v
+
+
+def round_half_up(x) -> int:
+    """Same as JavaScript Math.round (70.5 -> 71). Python's round() gives 70 (half to even),
+    which would make the frontend's re-ranked board disagree with the API."""
+    return int(math.floor(x + 0.5))
 
 
 def clamp(v, lo=0, hi=100):
@@ -38,6 +44,9 @@ def target_check(metric: str, value: Optional[float]) -> Optional[dict]:
                ideal_min=lo, ideal_max=hi, scale_min=smin, scale_max=smax, tip=tip)
     if value is None:
         return {**out, "score": None, "status": "unknown"}
+    if metric in NOT_VALIDATED:     # measured, but not trusted yet -> shown, never scored
+        return {**out, "score": None, "status": "unknown",
+                "tip": "Not checked yet: we are still validating this measurement, so it is not scored."}
     if lo <= value <= hi:
         return {**out, "score": 100, "status": "ideal"}
     # linear drop from 100 at the ideal edge to 0 at the end of the scale
@@ -70,17 +79,17 @@ def fair_from(scores: Dict[str, Optional[int]], age_adj: Dict[str, float],
     fair_score = sum(w_k * fair_k) / sum(w_k) + experience_bonus
     The breakdown always sums exactly to fair_score (rounding goes into the size step).
     """
-    fair = {k: (None if v is None else int(round(clamp(v + age_adj.get(k, 0) + size_adj.get(k, 0)))))
+    fair = {k: (None if v is None else round_half_up(clamp(v + age_adj.get(k, 0) + size_adj.get(k, 0))))
             for k, v in scores.items()}
     bonus = experience_bonus(years_playing)
     base = weighted_mean(scores)
     fair_mean = weighted_mean(fair)
     if base is None or fair_mean is None:
         return dict(fair_scores=fair, experience_bonus=bonus, fair_score=0, breakdown=[])
-    fair_score = int(round(fair_mean + bonus))
+    fair_score = round_half_up(fair_mean + bonus)
     measured = {k: v for k, v in scores.items() if v is not None}
-    age_step = int(round(weighted_mean({k: age_adj.get(k, 0) for k in measured}) or 0))
-    base_step = int(round(base))
+    age_step = round_half_up(weighted_mean({k: age_adj.get(k, 0) for k in measured}) or 0)
+    base_step = round_half_up(base)
     size_step = fair_score - base_step - age_step - bonus
     yrs = f"{years_playing} year{'s' if years_playing != 1 else ''} of experience"
     breakdown = [

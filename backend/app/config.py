@@ -17,12 +17,27 @@ CORS_ORIGINS = [o.strip() for o in os.getenv(
     "CORS_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",") if o.strip()]
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
+# AI coach report (Groq). Empty key = rule-based report only.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")   # Llama 3.3 is no longer on Groq
+AI_TIMEOUT_S = float(os.getenv("AI_TIMEOUT_S", "15"))
+
 # ------------------------------------------------------------------ storage (local only, never online)
-DATA_DIR = ROOT / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"
-MEDIA_DIR = DATA_DIR / "media"          # served at /media
-for _d in (UPLOAD_DIR, MEDIA_DIR):
+DATA_DIR = Path(os.getenv("HOOPSCOUT_DATA_DIR", ROOT / "data"))
+UPLOAD_DIR = DATA_DIR / "uploads"       # original files from the coach
+WORK_DIR = DATA_DIR / "work"            # converted .mp4 (step 1)
+MEDIA_DIR = DATA_DIR / "media"          # annotated videos, served at /media
+DB_PATH = DATA_DIR / "hoopscout.db"
+for _d in (UPLOAD_DIR, WORK_DIR, MEDIA_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+# Models (absolute paths, so the server can start from any folder)
+YOLO_MODEL = os.getenv("YOLO_MODEL", str(ROOT / "yolov8n.pt"))
+
+# Pipeline defaults tested on real videos - only tune with evidence from several kids.
+BALL_MAX_DIST = 0.5      # step3 --max-dist
+BALL_CONF = 0.15         # step3 --conf
+SHOT_MAX_KNEE = 150.0    # step4 --max-knee
 
 VIDEO_EXTENSIONS = {".mov", ".mp4", ".m4v", ".avi"}
 
@@ -76,6 +91,11 @@ IDEAL = {
     "weak_hand_pct": (40, 60, 0, 100, "%", "Weak-hand dribbles",
                       "Do every drill with the weak hand first."),
 }
+
+# Measurements we show but don't score or give advice on yet.
+# Elbow at set: Hamza reads ~56° vs the textbook 80-100°. Film one adult who shoots well
+# and run step 4: ~85-95° -> remove it from this set; ~60° -> fix set-point detection first.
+NOT_VALIDATED = {"avg_elbow_set_deg"}
 
 # Average height (cm) by age in years, 50th percentile. APPROXIMATE values for the
 # mock - replace with an official WHO/CDC table before the real ranking.

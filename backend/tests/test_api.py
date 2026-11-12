@@ -1,32 +1,42 @@
-"""Smoke test for every endpoint in the contract. Run from the repo root:
-    python -m pytest backend/tests -q        (or)   python backend/tests/test_api.py
+"""Every endpoint in the contract, with a FAKE pipeline (fast). Run from the repo root:
+    python -m pytest backend/tests -q
 """
+import copy
 import io
 import json
-import time
 
 from fastapi.testclient import TestClient
 
-from backend.app import mock_store
+from backend.app import jobs
 from backend.app.main import app
+from backend.app.synthetic import example_analyses
+
+
+def fake_runner(job, progress):
+    progress(50, "Detecting pose")
+    if open(job["upload_path"], "rb").read() == b"FAIL":
+        from backend.app.errors import PipelineError
+        raise PipelineError("Player too small in the frame - move the camera closer.")
+    return copy.deepcopy(example_analyses()[job["kind"]])
 
 
 def test_all_endpoints():
     with TestClient(app) as c:
+        jobs.RUNNER = fake_runner
         assert c.get("/api/health").json() == {"ok": True, "demo_mode": False}
 
         players = c.get("/api/players").json()
-        assert len(players) > 100
+        assert len(players) > 400
         private = {"weight_kg", "sitting_height_cm", "birth_date", "email", "phone", "address"}
         assert not private & set(players[0])
-        gems = [p for p in players if p["hidden_gem"]]
-        assert gems, "mock data should contain hidden gems"
+        assert any(p["hidden_gem"] for p in players)
         for p in players:   # breakdown always sums to fair_score
             if p["breakdown"]:
                 assert sum(s["value"] for s in p["breakdown"]) == p["fair_score"], p["id"]
 
         rep = c.get("/api/players/p_001").json()
         assert rep["player"]["rank_group"] == "Boys U16"
+        assert rep["player"]["scores"]["consistency"] == 84          # step4 formula on the example
         assert rep["shooting"]["targets"][0]["metric"] == "avg_elbow_set_deg"
         assert c.get("/api/players/nope").json() == {"error": "Player nope not found"}
 
@@ -41,32 +51,36 @@ def test_all_endpoints():
         assert new["maturity_offset_years"] is not None
         pid = new["id"]
 
-        bad_file = c.post(f"/api/players/{pid}/videos", data={"kind": "jump"},
-                          files={"file": ("x.txt", io.BytesIO(b"x"))})
-        assert bad_file.status_code == 400
+        assert c.post(f"/api/players/{pid}/videos", data={"kind": "jump"},
+                      files={"file": ("x.txt", io.BytesIO(b"x"))}).status_code == 400
+        assert c.post("/api/players/p_100/videos", data={"kind": "jump"},
+                      files={"file": ("a.mp4", io.BytesIO(b"x"))}).status_code == 400   # simulated
 
-        mock_store.JOB_SECONDS = 0.5        # speed up the fake analysis
-        jobs = [c.post(f"/api/players/{pid}/videos", data={"kind": k},
-                       files={"file": (f"{k}.mp4", io.BytesIO(b"fake"))}).json()
-                for k in ("shooting", "dribbling", "jump")]
-        time.sleep(1.2)
-        assert all(c.get(f"/api/jobs/{j['job_id']}").json()["status"] == "done" for j in jobs)
+        js = [c.post(f"/api/players/{pid}/videos", data={"kind": k},
+                     files={"file": (f"{k}.mp4", io.BytesIO(b"fake"))}).json()
+              for k in ("shooting", "dribbling", "jump")]
+        jobs.wait_idle()
+        assert all(c.get(f"/api/jobs/{j['job_id']}").json()["status"] == "done" for j in js)
+
+        failed = c.post(f"/api/players/{pid}/videos", data={"kind": "jump"},
+                        files={"file": ("bad.mp4", io.BytesIO(b"FAIL"))}).json()
+        jobs.wait_idle()
+        f = c.get(f"/api/jobs/{failed['job_id']}").json()
+        assert f["status"] == "failed" and "camera" in f["error"]
 
         rep = c.post(f"/api/players/{pid}/analyze").json()
         assert rep["player"]["status"] == "ranked" and rep["player"]["fair_rank"]
+        assert rep["player"]["rank_group"].startswith("Girls")
         assert len(rep["coach_report"]["drills"]) == 3
+        assert rep["sessions"][0]["target_values"]["avg_elbow_set_deg"] == 56
         assert c.post(f"/api/players/{pid}/coach-report").json()["source"] == "rules"
 
         bias = c.get("/api/bias").json()
-        assert sum(bias["birth_quarter"]["raw_top10"]) <= 10 * 10        # top 10 of each of 10 groups
+        json.dumps(bias, allow_nan=False)
         one = c.get("/api/bias", params={"rank_group": "Boys U14"}).json()
         assert sum(one["birth_quarter"]["raw_top10"]) == 10
-        json.dumps(bias, allow_nan=False)
-        print(f"OK - {len(players)} players, {len(gems)} hidden gems, "
-              f"raw top10 quarters {bias['birth_quarter']['raw_top10']}, "
-              f"fair top10 {bias['birth_quarter']['fair_top10']}, "
-              f"height raw {bias['height']['raw_top10_avg_diff_cm']} vs fair {bias['height']['fair_top10_avg_diff_cm']}")
 
-
-if __name__ == "__main__":
-    test_all_endpoints()
+    # restart: the real player is still there (SQLite)
+    with TestClient(app) as c:
+        again = c.get(f"/api/players/{pid}").json()
+        assert again["player"]["status"] == "ranked" and again["shooting"] is not None

@@ -15,29 +15,24 @@ from common import (KEY_JOINTS, L_ANKLE, R_ANKLE, NOSE, body_height_px, draw_ske
                     extract_pose, iter_frames, out_name, put_text, H264Writer)
 
 
-def report(pose):
+def check_pose(pose):
+    """The step-2 checks as numbers (used by the backend for QualityInfo)."""
     xy, vis, det = pose["xy"], pose["vis"], pose["detected"]
     fps, h = pose["fps"], pose["h"]
     n = len(det)
     problems = []
 
     det_rate = det.mean() * 100 if n else 0
-    print(f"\nFrames: {n}  ({n / fps:.1f} s at {fps:.0f} fps)")
-    print(f"Person detected in: {det_rate:.0f}% of frames")
     if det_rate < 90:
         problems.append("Person missing in many frames -> better light, camera closer, nobody else in shot")
 
-    print("\nJoint visibility (average when person is detected):")
-    for name, j in KEY_JOINTS.items():
-        v = vis[det, j].mean() * 100 if det.any() else 0
-        print(f"  {name:<11} {v:5.0f}%  {'OK' if v >= 60 else 'LOW'}")
+    joints = {name: (vis[det, j].mean() * 100 if det.any() else 0) for name, j in KEY_JOINTS.items()}
 
     ank = vis[det][:, [L_ANKLE, R_ANKLE]].mean() * 100 if det.any() else 0
     if ank < 60:
         problems.append("Feet often not visible -> whole body must be in frame")
 
     size = body_height_px(xy) / h * 100
-    print(f"\nPlayer (nose to ankle) fills ~{size:.0f}% of frame height (target 30-80%)")
     if np.isnan(size) or size < 30:
         problems.append("Player too small -> move camera closer")
     elif size > 80:
@@ -50,6 +45,19 @@ def report(pose):
 
     if fps < 29:
         problems.append("Low fps -> film at 30 or 60 fps")
+    return dict(frames=n, fps=fps, det_rate=float(det_rate), joints=joints, ankle_vis=float(ank),
+                size_pct=float(size), problems=problems, good=not problems)
+
+
+def report(pose):
+    c = check_pose(pose)
+    n, fps, problems = c["frames"], c["fps"], c["problems"]
+    print(f"\nFrames: {n}  ({n / fps:.1f} s at {fps:.0f} fps)")
+    print(f"Person detected in: {c['det_rate']:.0f}% of frames")
+    print("\nJoint visibility (average when person is detected):")
+    for name, v in c["joints"].items():
+        print(f"  {name:<11} {v:5.0f}%  {'OK' if v >= 60 else 'LOW'}")
+    print(f"\nPlayer (nose to ankle) fills ~{c['size_pct']:.0f}% of frame height (target 30-80%)")
 
     print("\nVERDICT:", "GOOD - ready for analysis" if not problems else "NEEDS FIXING")
     for p in problems:
