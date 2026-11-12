@@ -1,153 +1,151 @@
-# HoopScout
+# 🏀 HoopScout
 
-A coach enters a kid's bio and uploads 3 phone videos (shooting, dribbling, jump). The app
-measures their skills, writes an AI coach report with drills, and places the kid on a fair
-Talent Board where scouts can find hidden gems — kids who are overlooked because they were born
-late in the year or are still small.
+**Skill, not size.** HoopScout turns three phone videos of a young basketball player into
+measured skills, an AI coach report with drills, and a **fair** ranking that finds the
+talented kids traditional scouting overlooks.
 
-- **API contract** (frontend + backend build against it): [api_contract.md](api_contract.md)
-- **Backend** (Python, FastAPI): [backend/README.md](backend/README.md)
-- **Frontend** (React + TypeScript, TanStack Start, built with Lovable): `src/`
+## The problem
 
-## Run everything locally
+In youth sport, kids born early in the year and early growers are bigger, stronger and faster
+than their teammates, and get picked. Late-born and late-developing kids with real skill are
+overlooked before anyone sees what they can do. This is the *relative age effect*, and it shows
+up in almost every youth team.
 
-Backend (terminal 1, from this folder):
+## What HoopScout does
+
+1. **A coach adds a kid** (bio + 3 short phone videos: shooting, dribbling, jump).
+2. **Computer vision measures the skills** on the laptop: pose tracking (MediaPipe) and ball
+   tracking (YOLO) produce elbow and knee angles, release height, shot-to-shot consistency,
+   dribbles per second, weak-hand use, head-up time and jump height. Every video comes back
+   annotated (skeleton, ball circle, shot phases, jump labels).
+3. **An AI coach report** explains the numbers in plain language and gives 3 drills a kid can
+   do alone this week. The AI only sees numbers, never the video or the kid's name.
+4. **A fair Talent Board** ranks every kid within their gender and age group twice:
+   - **Scout view (raw):** how a traditional scout sees it, where older and taller kids look better.
+   - **Fair view:** skill compared with what's expected for the kid's age and size.
+
+   Kids who rank much higher in Fair view than in Scout view, and are in the top 25% of their
+   group, are marked as **💎 hidden gems**. Each kid has a "why this rank" breakdown.
+5. **Scouts** filter the board, change the skill weights with sliders, compare kids side by
+   side, keep a shortlist, and see the **Bias Check**: how the fair ranking reduces the
+   advantage of being born early or being tall.
+
+## How the fair score works
+
+- **Skill scores (0–100)** come from the video metrics. Shot-to-shot **consistency** counts 1.5×,
+  because repeating the same motion is the most reliable sign of skill at any age. There are no
+  made/missed shots: it measures skill, not luck on the day.
+- **Age-appropriate scoring:** technique targets are wider for U10/U12 (less strength, lower hoop,
+  smaller ball), and jump height and dribble speed are scored as a percentile among kids of the
+  same gender and age group.
+- **Fair adjustment:** a linear regression per skill and gender learns how many points a kid
+  usually gains per month older and per cm taller than the others in their group. Younger and
+  smaller kids get those points back; older and taller kids lose them. Ranks are only ever
+  compared within the same gender and age group (Bosnian categories: U16 = turns 15 or 16 this year).
+- **Honest uncertainty:** every score has a ± margin. Kids with too few reps or poor tracking are
+  shown as *provisional* (not ranked) instead of getting wrong scores, and implausible values
+  are flagged as tracking errors.
+
+The full rules are in the [API contract](api_contract.md).
+
+## Privacy by design
+
+- Videos, the database and API keys stay on the laptop (`data/`, `.env` are git-ignored).
+  Nothing is uploaded online.
+- The AI coach gets only measured numbers, never video, name, club, town or birth date.
+- The app never shows a birth date, weight, address or direct contact. Scouts contact a kid
+  through the club ("Contact via club"). Cards show the age group.
+- Coaches only see the kids of their own club.
+- Simulated players are always labelled "Simulated".
+
+## Tech stack
+
+| Part | Technology |
+|---|---|
+| Frontend | React + TypeScript, TanStack Start/Router/Query, Tailwind CSS (built with Lovable) |
+| Backend | Python, FastAPI, SQLite |
+| Video analysis | MediaPipe Pose, Ultralytics YOLOv8 (ball), OpenCV, ffmpeg |
+| Scoring | NumPy regression per skill + gender |
+| AI coach report | Groq (`gpt-oss-120b`), with a rule-based fallback when offline |
+
+Videos are analyzed in a background worker, one at a time, in a separate low-priority process,
+so the app stays fast. The kid is ranked automatically after the last video.
+
+## Run it locally
+
+You need **Python 3.11–3.13** and **Node.js 20+**.
+
+**1. Backend** (terminal 1, from the repo root):
 
 ```
 python -m venv venv
-venv\Scripts\activate            (Windows)    source venv/bin/activate   (Mac/Linux)
+venv\Scripts\activate                 # Windows
+source venv/bin/activate              # Mac/Linux
 pip install -r requirements.txt
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Frontend (terminal 2, from this folder):
+The first video analysis downloads the pose model (~9 MB) and the ball model (~6 MB).
+API docs: http://localhost:8000/docs
+
+**2. Frontend** (terminal 2, from the repo root):
 
 ```
-npm i
+npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The frontend reads the API from `VITE_API_URL`
-(default `http://localhost:8000`).
+Open **http://localhost:5173**, pick **Coach** to add a kid, or **Scout** to explore the board.
+The frontend reads the API from `VITE_API_URL` (default `http://localhost:8000`).
 
-Demo mode (stage safety net, uploads finish in ~10 s with saved results):
+**3. AI coach report (optional):** copy `.env.example` to `.env` and add a Groq API key
+(`GROQ_API_KEY=...`). Without a key, the rule-based report is used.
+
+**Demo mode** (uploads finish in ~10 s by replaying saved results, useful on stage):
 
 ```
 $env:DEMO_MODE="true"; python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Privacy
-
-Kids' videos, the database (`data/`) and `.env` (API keys) stay on the laptop and are
-git-ignored. The AI only ever sees measured numbers.
-
-## Video analysis test scripts
-
-`step1_convert.py` … `step5_jump_test.py` are the tested video analysis scripts the backend
-uses. See the section below for testing them on new videos.
-
----
-
-## HoopScout – video testing, step by step
-
-Goal: before the hackathon, prove that the video analysis works on YOUR videos.
-Do the steps in order. Each step tells you GOOD / NEEDS FIXING.
-
-## Step 0 – Setup (once, at home)
-
-1. Install Python 3.11 or 3.12 (3.13 also works).
-2. Open a terminal in this folder and run:
+**Tests:**
 
 ```
-python -m venv venv
-venv\Scripts\activate          (Windows)
-source venv/bin/activate       (Mac/Linux)
-pip install -r requirements.txt
+python -m pytest backend/tests -q      # backend
+npm test                               # frontend
 ```
 
-`ultralytics` installs PyTorch, which is a big download, so do this on good Wi-Fi.
-The MediaPipe pose model and the YOLO model download automatically the first time.
+## Filming tips (for good measurements)
 
-Folder layout:
+- Phone steady (tripod), filmed from the side, **only the kid** in the frame.
+- Whole body visible, head to feet, filling about a third to three quarters of the frame height.
+- **Shooting:** at least 6 shots, filmed from the shooting-hand side (a left-hander from the left).
+- **Dribbling:** at least 20–30 seconds, ball clearly visible against the floor.
+- **Jump:** at least 3 jumps, 60 fps if possible. Good light, no window behind the kid.
 
-```
-hoopscout_test/
-├── raw_videos/      <- put your .MOV files here
-├── videos/          <- converted .mp4 files (step 1 creates this)
-├── test_output/     <- annotated videos + CSV (created automatically)
-└── *.py
-```
-
-Name the files like: `amar_shooting.MOV`, `amar_dribbling.MOV`, `amar_jump.MOV`.
-
-## Step 1 – Convert the videos
+## Repository layout
 
 ```
-python step1_convert.py raw_videos videos
+backend/             FastAPI app, scoring, AI report, tests  (see backend/README.md)
+src/                 React frontend (routes, components, API client, tests)
+public/              static files (icons)
+step1_convert.py …   tested video analysis scripts, used by the backend
+step5_jump_test.py   (testing them on new videos: backend/VIDEO_TESTING.md)
+api_contract.md      the API contract frontend and backend build against
 ```
 
-✅ Every file says OK. Check the **out fps** column: 60 is best for the jump, 30 is fine.
+## Status and next steps
 
-## Step 2 – Can MediaPipe see the player? (run on EVERY video)
+HoopScout is a hackathon prototype. Today it has **one real filmed player**, compared with a
+**simulated dataset** of 400 kids that has a realistic relative-age and height bias.
 
-```
-python step2_pose_test.py videos/amar_shooting.mp4
-```
+Next steps:
+- Validate the elbow measurement with an adult shooter, then switch on the shooting-form score.
+- Replace the placeholder age-group targets and jump/dribble norms with numbers from coaches
+  and official youth norm tables.
+- Film more kids to calibrate the skill formulas.
+- Progress over time: the data model already stores sessions per kid.
 
-✅ VERDICT: GOOD, person detected ≥ 90%.
-👀 Open `test_output/amar_shooting_pose.mp4`: the skeleton must follow the body.
-❌ NEEDS FIXING → follow the hint (closer camera, whole body in frame, better light) and re-film.
+## Team
 
-## Step 3 – Ball tracking + dribbling (the riskiest part)
-
-```
-python step3_dribble_ball_test.py videos/amar_dribbling.mp4
-```
-
-✅ "After filling short gaps" ≥ 70% = ball tracking works.
-👀 Open `test_output/amar_dribbling_ball.mp4`: the circle must stay on the ball.
-✋ **Count the dribbles yourself** in the video and compare with the two counts.
-If the ball is found < 70%, try the bigger model:
-
-```
-python step3_dribble_ball_test.py videos/amar_dribbling.mp4 --model yolov8s.pt
-```
-
-If it is still weak, the app will use the wrist-based count (fallback).
-
-## Step 4 – Shooting numbers
-
-```
-python step4_shooting_test.py videos/amar_shooting.mp4 --hand right
-```
-
-✅ "Shots found" = the real number of shots in the video.
-✅ Elbow at set point is usually 60–110°, knee bend 100–150°.
-👀 Open `test_output/amar_shooting_shooting.mp4`: the DIP / SET / RELEASE labels should
-appear at the right moments. Per-shot numbers are in `test_output/amar_shooting_shots.csv`.
-
-## Step 5 – Vertical jump
-
-```
-python step5_jump_test.py videos/amar_jump.mp4 --height 158
-```
-
-(`--height` = the kid's real height in cm)
-
-✅ "Jumps found" = the real number of jumps.
-✅ Both methods agree ("yes") and the height is realistic (roughly 20–45 cm for 10–14 year olds).
-
-## Results table – fill this in for all 4 kids
-
-| Kid | Step 2 pose | Step 3 ball % | Dribbles (real / app) | Shots (real / app) | Jumps (real / app) | Jump cm |
-|-----|-------------|---------------|-----------------------|--------------------|--------------------|---------|
-|     |             |               |                       |                    |                    |         |
-
-If all rows look good, the video part of the app is proven, and the hackathon is
-"only" building the app around it.
-
-## Notes
-
-- `check_video.py` from earlier uses the OLD MediaPipe API that new versions removed.
-  Use `step2_pose_test.py` instead.
-- Thresholds such as the consistency formula are first drafts. Tune them after seeing real numbers.
+- **Faris** – backend, video analysis, scoring, AI coach report
+- **Imran** – frontend (Talent Board, profiles, coach upload, Bias Check)
