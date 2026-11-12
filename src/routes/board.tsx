@@ -77,7 +77,9 @@ function Board() {
   const allRanked = useMemo(() => rankPlayers(q.data ?? [], weights), [q.data, weights]);
   const ranked = useMemo(() => allRanked.filter((p) => canSeePlayer(role, coachClub, p)), [allRanked, role, coachClub]);
   const groups = useMemo(() => [...new Set(ranked.map((p) => p.rank_group))].sort(), [ranked]);
-  const group = pickedGroup ?? (groups.includes("Boys U14") ? "Boys U14" : (groups[0] ?? ALL));
+  // Open on the group of the first filmed (real) kid — that's the demo story — else Boys U14.
+  const realGroup = ranked.find((p) => p.is_real)?.rank_group;
+  const group = pickedGroup ?? realGroup ?? (groups.includes("Boys U14") ? "Boys U14" : (groups[0] ?? ALL));
   const towns = useMemo(() => [...new Set(ranked.map((p) => p.town).filter(Boolean))].sort(), [ranked]);
 
   const filtered = ranked.filter(

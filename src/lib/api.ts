@@ -80,7 +80,10 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const getHealth = () =>
-  withFallback(() => request<{ status: string }>("/api/health", undefined, 3000), mockApi.getHealth);
+  withFallback(
+    () => request<{ ok?: boolean; status?: string; demo_mode?: boolean }>("/api/health", undefined, 3000),
+    mockApi.getHealth,
+  );
 
 export const getPlayers = () =>
   withFallback(() => request<PlayerSummary[]>("/api/players"), mockApi.getPlayers);

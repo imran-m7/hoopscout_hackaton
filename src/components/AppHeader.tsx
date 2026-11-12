@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Repeat } from "lucide-react";
 import { demoServerSnapshot, getHealth, isDemoMode, subscribeDemo } from "@/lib/api";
 import { useCoachClub, useRole } from "@/lib/storage";
@@ -26,10 +26,14 @@ export function AppHeader() {
   const [role, setRole] = useRole();
   const [club, setClub] = useCoachClub();
   const demo = useDemoMode();
+  // Backend demo mode (DEMO_MODE=true): real data, but uploads replay saved results.
+  const [serverDemo, setServerDemo] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    getHealth().catch(() => undefined);
+    getHealth()
+      .then((h) => setServerDemo("demo_mode" in h && h.demo_mode === true))
+      .catch(() => undefined);
   }, []);
 
   return (
@@ -44,6 +48,11 @@ export function AppHeader() {
         {demo && (
           <span className="rounded-full border border-ok/50 bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok" title="The API is unavailable — showing sample data">
             Demo mode · Sample data
+          </span>
+        )}
+        {!demo && serverDemo && (
+          <span className="rounded-full border border-ok/50 bg-ok/15 px-2.5 py-0.5 text-xs font-semibold text-ok" title="The server is in demo mode — uploads replay saved real results">
+            Demo mode
           </span>
         )}
         <nav className="order-last -mx-1 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
